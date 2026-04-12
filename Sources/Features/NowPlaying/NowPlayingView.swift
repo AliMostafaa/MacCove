@@ -18,24 +18,16 @@ struct NowPlayingView: View {
 
     private var trackView: some View {
         HStack(alignment: .center, spacing: 0) {
-            // Left: Album artwork
             artworkView
                 .padding(.leading, 16)
 
-            // Right: Track info, controls, progress
             VStack(alignment: .leading, spacing: 0) {
                 Spacer(minLength: 0)
-
                 trackInfoView
-
                 Spacer(minLength: 14)
-
                 controlsView
-
                 Spacer(minLength: 16)
-
                 progressView
-
                 Spacer(minLength: 10)
             }
             .padding(.horizontal, 20)
@@ -53,20 +45,30 @@ struct NowPlayingView: View {
                     .resizable()
                     .aspectRatio(contentMode: .fill)
                     .frame(width: 158, height: 158)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                    .shadow(color: .black.opacity(0.65), radius: 22, y: 10)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    // Layered shadow: deep ambient + mid contact for physical depth
+                    .shadow(color: .black.opacity(0.70), radius: 28, x: 0, y: 14)
+                    .shadow(color: .black.opacity(0.25), radius: 8,  x: 0, y: 4)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .strokeBorder(.white.opacity(0.1), lineWidth: 0.5)
+                        RoundedRectangle(cornerRadius: 16)
+                            .strokeBorder(.white.opacity(0.09), lineWidth: 0.5)
+                    )
+                    // Subtle lift/settle on play state change
+                    .scaleEffect(state.nowPlaying.isPlaying ? 1.0 : 0.96)
+                    .animation(
+                        state.nowPlaying.isPlaying
+                            ? .spring(response: 0.55, dampingFraction: 0.70)
+                            : .spring(response: 0.40, dampingFraction: 0.88),
+                        value: state.nowPlaying.isPlaying
                     )
             } else {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 14)
+                    RoundedRectangle(cornerRadius: 16)
                         .fill(
                             LinearGradient(
                                 colors: [
                                     Color(red: 0.22, green: 0.15, blue: 0.35),
-                                    Color(red: 0.1, green: 0.13, blue: 0.28),
+                                    Color(red: 0.10, green: 0.13, blue: 0.28),
                                     Color(red: 0.14, green: 0.09, blue: 0.22)
                                 ],
                                 startPoint: .topLeading,
@@ -83,10 +85,10 @@ struct NowPlayingView: View {
                         .offset(x: 38, y: 28)
                     Image(systemName: "music.note")
                         .font(.system(size: 44, weight: .ultraLight))
-                        .foregroundStyle(.white.opacity(0.2))
+                        .foregroundStyle(.white.opacity(0.18))
                 }
                 .frame(width: 158, height: 158)
-                .shadow(color: .black.opacity(0.5), radius: 18, y: 8)
+                .shadow(color: .black.opacity(0.55), radius: 22, x: 0, y: 10)
             }
         }
     }
@@ -102,13 +104,13 @@ struct NowPlayingView: View {
 
             Text(state.nowPlaying.artist)
                 .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.white.opacity(0.55))
+                .foregroundStyle(.white.opacity(0.52))
                 .lineLimit(1)
 
             if !state.nowPlaying.album.isEmpty {
                 Text(state.nowPlaying.album)
                     .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.3))
+                    .foregroundStyle(.white.opacity(0.28))
                     .lineLimit(1)
             }
         }
@@ -118,20 +120,13 @@ struct NowPlayingView: View {
     // MARK: - Controls
 
     private var controlsView: some View {
-        HStack(spacing: 18) {
+        HStack(spacing: 16) {
             // Previous
-            Button {
+            MediaButton(icon: "backward.fill", size: 18) {
                 NotificationCenter.default.post(name: .init("MacCove.previousTrack"), object: nil)
-            } label: {
-                Image(systemName: "backward.fill")
-                    .font(.system(size: 19))
-                    .foregroundStyle(.white.opacity(0.8))
-                    .frame(width: 40, height: 40)
-                    .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 10))
             }
-            .buttonStyle(.plain)
 
-            // Play / Pause
+            // Play / Pause — primary action, larger and luminous
             Button {
                 NotificationCenter.default.post(name: .init("MacCove.togglePlayPause"), object: nil)
             } label: {
@@ -139,27 +134,24 @@ struct NowPlayingView: View {
                     Circle()
                         .fill(.white)
                         .frame(width: 52, height: 52)
-                        .shadow(color: .white.opacity(0.2), radius: 12)
+                        .shadow(color: .white.opacity(0.18), radius: 14, x: 0, y: 4)
+                        .shadow(color: .white.opacity(0.08), radius: 28, x: 0, y: 8)
 
                     Image(systemName: state.nowPlaying.isPlaying ? "pause.fill" : "play.fill")
                         .font(.system(size: 20, weight: .black))
                         .foregroundStyle(.black)
                         .offset(x: state.nowPlaying.isPlaying ? 0 : 2)
+                        .animation(.spring(response: 0.22, dampingFraction: 0.80), value: state.nowPlaying.isPlaying)
                 }
+                .scaleEffect(1.0)
+                .contentShape(Circle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressScaleButtonStyle(scale: 0.93))
 
             // Next
-            Button {
+            MediaButton(icon: "forward.fill", size: 18) {
                 NotificationCenter.default.post(name: .init("MacCove.nextTrack"), object: nil)
-            } label: {
-                Image(systemName: "forward.fill")
-                    .font(.system(size: 19))
-                    .foregroundStyle(.white.opacity(0.8))
-                    .frame(width: 40, height: 40)
-                    .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 10))
             }
-            .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity)
     }
@@ -172,23 +164,36 @@ struct NowPlayingView: View {
                 let barWidth = geo.size.width
                 let displayProgress = isScrubbing ? scrubProgress : state.nowPlaying.progress
                 let fillWidth = barWidth * displayProgress
+                let isActive = isHoveringProgress || isScrubbing
 
                 ZStack(alignment: .leading) {
+                    // Track
                     Capsule()
-                        .fill(.white.opacity(0.14))
-                        .frame(height: (isHoveringProgress || isScrubbing) ? 5 : 3)
+                        .fill(.white.opacity(0.13))
+                        .frame(height: isActive ? 5 : 3)
+                        .animation(.easeOut(duration: 0.14), value: isActive)
 
+                    // Fill
                     Capsule()
                         .fill(.white)
-                        .frame(width: max(fillWidth, 0), height: (isHoveringProgress || isScrubbing) ? 5 : 3)
+                        .frame(width: max(fillWidth, 0), height: isActive ? 5 : 3)
+                        .animation(.easeOut(duration: 0.14), value: isActive)
 
-                    if isHoveringProgress || isScrubbing {
+                    // Scrub thumb — springs in on hover
+                    if isActive {
                         Circle()
                             .fill(.white)
-                            .frame(width: isScrubbing ? 14 : 12, height: isScrubbing ? 14 : 12)
-                            .shadow(color: .black.opacity(0.3), radius: 3)
-                            .position(x: min(max(fillWidth, 6), barWidth - 6), y: geo.size.height / 2)
-                            .transition(.scale)
+                            .frame(
+                                width:  isScrubbing ? 14 : 11,
+                                height: isScrubbing ? 14 : 11
+                            )
+                            .shadow(color: .black.opacity(0.25), radius: 3)
+                            .position(
+                                x: min(max(fillWidth, 6), barWidth - 6),
+                                y: geo.size.height / 2
+                            )
+                            .animation(.spring(response: 0.22, dampingFraction: 0.78), value: isScrubbing)
+                            .transition(.scale.combined(with: .opacity))
                     }
                 }
                 .frame(height: geo.size.height)
@@ -196,9 +201,8 @@ struct NowPlayingView: View {
                 .gesture(
                     DragGesture(minimumDistance: 0)
                         .onChanged { value in
-                            let fraction = min(max(value.location.x / barWidth, 0), 1)
                             isScrubbing = true
-                            scrubProgress = fraction
+                            scrubProgress = min(max(value.location.x / barWidth, 0), 1)
                         }
                         .onEnded { value in
                             let fraction = min(max(value.location.x / barWidth, 0), 1)
@@ -214,7 +218,7 @@ struct NowPlayingView: View {
             }
             .frame(height: 14)
             .onHover { hovering in
-                withAnimation(.easeOut(duration: 0.15)) {
+                withAnimation(.easeOut(duration: 0.14)) {
                     isHoveringProgress = hovering
                 }
             }
@@ -225,7 +229,7 @@ struct NowPlayingView: View {
                 Text(state.nowPlaying.formattedDuration)
             }
             .font(.system(size: 10, weight: .medium, design: .monospaced))
-            .foregroundStyle(.white.opacity(0.38))
+            .foregroundStyle(.white.opacity(0.35))
         }
     }
 
@@ -249,17 +253,55 @@ struct NowPlayingView: View {
                     .frame(width: 80, height: 80)
                 Image(systemName: "waveform")
                     .font(.system(size: 32, weight: .ultraLight))
-                    .foregroundStyle(.white.opacity(0.15))
+                    .foregroundStyle(.white.opacity(0.13))
             }
             VStack(spacing: 4) {
                 Text("Nothing Playing")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.25))
+                    .foregroundStyle(.white.opacity(0.22))
                 Text("Play a track to see it here")
                     .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.12))
+                    .foregroundStyle(.white.opacity(0.11))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// MARK: - Reusable media button
+
+private struct MediaButton: View {
+    let icon: String
+    let size: CGFloat
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: size))
+                .foregroundStyle(.white.opacity(isHovered ? 0.95 : 0.72))
+                .frame(width: 40, height: 40)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(.white.opacity(isHovered ? 0.10 : 0.065))
+                )
+                .scaleEffect(isHovered ? 1.04 : 1.0)
+                .animation(.spring(response: 0.22, dampingFraction: 0.78), value: isHovered)
+        }
+        .buttonStyle(PressScaleButtonStyle(scale: 0.90))
+        .onHover { isHovered = $0 }
+    }
+}
+
+// MARK: - Press scale button style
+
+private struct PressScaleButtonStyle: ButtonStyle {
+    let scale: CGFloat
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? scale : 1.0)
+            .animation(.spring(response: 0.20, dampingFraction: 0.72), value: configuration.isPressed)
     }
 }

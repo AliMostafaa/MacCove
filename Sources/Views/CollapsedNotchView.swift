@@ -19,8 +19,8 @@ struct CollapsedNotchView: View {
                     .transition(.opacity.combined(with: .move(edge: .leading)))
             }
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: state.nowPlaying.isPlaying)
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: state.shelf.items.count)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: state.nowPlaying.isPlaying)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: state.shelf.items.count)
         .frame(width: NotchConstants.collapsedWidth, height: NotchConstants.collapsedHeight)
     }
 
@@ -28,23 +28,8 @@ struct CollapsedNotchView: View {
 
     private var leftWing: some View {
         HStack(spacing: 7) {
-            // Album art thumbnail
             artworkThumbnail
-
-            // Track title + playback indicator
-            VStack(alignment: .leading, spacing: 1) {
-                Text(state.nowPlaying.title)
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.75))
-                    .lineLimit(1)
-                    .frame(maxWidth: 62, alignment: .leading)
-
-                Text(state.nowPlaying.artist)
-                    .font(.system(size: 8, weight: .regular))
-                    .foregroundStyle(.white.opacity(0.38))
-                    .lineLimit(1)
-                    .frame(maxWidth: 62, alignment: .leading)
-            }
+            trackLabels
         }
         .padding(.leading, 8)
         .padding(.trailing, 4)
@@ -58,6 +43,14 @@ struct CollapsedNotchView: View {
                     .aspectRatio(contentMode: .fill)
                     .frame(width: 22, height: 22)
                     .clipShape(RoundedRectangle(cornerRadius: 5))
+                    // Subtle scale-breathe when playing
+                    .scaleEffect(state.nowPlaying.isPlaying ? 1.0 : 0.92)
+                    .animation(
+                        state.nowPlaying.isPlaying
+                            ? .spring(response: 0.5, dampingFraction: 0.72)
+                            : .spring(response: 0.35, dampingFraction: 0.88),
+                        value: state.nowPlaying.isPlaying
+                    )
             } else {
                 RoundedRectangle(cornerRadius: 5)
                     .fill(.white.opacity(0.08))
@@ -69,12 +62,28 @@ struct CollapsedNotchView: View {
                     )
             }
 
-            // Pulsing ring when playing
+            // Pulsing accent ring when playing
             if state.nowPlaying.isPlaying {
                 RoundedRectangle(cornerRadius: 5)
-                    .strokeBorder(NotchConstants.accentGlow.opacity(0.5), lineWidth: 1)
+                    .strokeBorder(NotchConstants.accentGlow.opacity(0.55), lineWidth: 1)
                     .frame(width: 22, height: 22)
             }
+        }
+    }
+
+    private var trackLabels: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(state.nowPlaying.title)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.78))
+                .lineLimit(1)
+                .frame(maxWidth: 62, alignment: .leading)
+
+            Text(state.nowPlaying.artist)
+                .font(.system(size: 8, weight: .regular))
+                .foregroundStyle(.white.opacity(0.38))
+                .lineLimit(1)
+                .frame(maxWidth: 62, alignment: .leading)
         }
     }
 
@@ -83,12 +92,12 @@ struct CollapsedNotchView: View {
     private var rightWing: some View {
         HStack(spacing: 6) {
             if state.nowPlaying.isPlaying {
-                HStack(spacing: 2) {
-                    ForEach(0..<3, id: \.self) { index in
+                HStack(spacing: 2.5) {
+                    ForEach(0..<4, id: \.self) { index in
                         MusicBar(index: index)
                     }
                 }
-                .frame(width: 14, height: 12)
+                .frame(width: 18, height: 14)
             }
 
             if !state.shelf.items.isEmpty {
@@ -98,7 +107,7 @@ struct CollapsedNotchView: View {
                     Text("\(state.shelf.items.count)")
                         .font(.system(size: 8, weight: .bold))
                 }
-                .foregroundStyle(.white.opacity(0.5))
+                .foregroundStyle(.white.opacity(0.45))
             }
         }
         .padding(.trailing, 10)
@@ -108,20 +117,39 @@ struct CollapsedNotchView: View {
 
 // MARK: - Music Equalizer Bars
 
+/// Each bar has a unique randomised target height and animation duration,
+/// creating an organic, non-mechanical equaliser effect.
 private struct MusicBar: View {
     let index: Int
-    @State private var height: CGFloat = 3
+    @State private var animHeight: CGFloat = 2
+
+    // Per-bar personality: distinct heights and tempos
+    private static let targetHeights: [CGFloat] = [11, 7, 13, 9]
+    private static let durations:     [Double]  = [0.48, 0.38, 0.55, 0.42]
+    private static let minHeights:    [CGFloat] = [2, 3, 2, 4]
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 1)
-            .fill(NotchConstants.accentGlow)
-            .frame(width: 2, height: height)
+        RoundedRectangle(cornerRadius: 1.5)
+            .fill(
+                LinearGradient(
+                    colors: [
+                        NotchConstants.accentGlow,
+                        NotchConstants.accentGlow.opacity(0.55)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .frame(width: 2.5, height: max(Self.minHeights[index % 4], animHeight))
             .onAppear {
+                // Stagger start so bars don't all move in sync
+                let delay = Double(index) * 0.08
                 withAnimation(
-                    .easeInOut(duration: 0.35 + Double(index) * 0.12)
+                    .easeInOut(duration: Self.durations[index % 4])
                     .repeatForever(autoreverses: true)
+                    .delay(delay)
                 ) {
-                    height = 8 + CGFloat(index) * 2
+                    animHeight = Self.targetHeights[index % 4]
                 }
             }
     }

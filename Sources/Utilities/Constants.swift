@@ -15,10 +15,18 @@ enum NotchConstants {
     static let panelWidth: CGFloat = 720
     static let panelHeight: CGFloat = 440
 
-    // Animation
-    static let springResponse: Double = 0.45
-    static let springDamping: Double = 0.74
-    static let contentFadeDelay: Double = 0.1
+    // MARK: - Animation
+
+    /// Opening: organic, slight bounce — feels alive
+    static let openSpring = Animation.spring(response: 0.50, dampingFraction: 0.68)
+    /// Closing: decisive, no overshoot — feels fast and clean
+    static let closeSpring = Animation.spring(response: 0.30, dampingFraction: 0.92)
+    /// Content entrance: slightly slower so shape leads
+    static let contentEntrance = Animation.spring(response: 0.38, dampingFraction: 0.84)
+    /// Tab pill slide: very snappy
+    static let tabSpring = Animation.spring(response: 0.26, dampingFraction: 0.80)
+
+    static let contentFadeDelay: Double = 0.07
 
     // Hover detection
     static let hoverPadding: CGFloat = 25
@@ -29,10 +37,13 @@ enum NotchConstants {
     static let fallbackNotchWidth: CGFloat = 180
     static let fallbackNotchHeight: CGFloat = 32
 
-    // Colors
+    // MARK: - Colors
+
     static let notchBackground = Color.black
-    static let expandedBackground = Color(nsColor: NSColor(white: 0.08, alpha: 1.0))
-    static let accentGlow = Color(red: 0.4, green: 0.6, blue: 1.0)
+    static let expandedBackground = Color(nsColor: NSColor(white: 0.07, alpha: 1.0))
+    static let accentGlow = Color(red: 0.45, green: 0.62, blue: 1.0)
+    static let surfaceOverlay = Color.white.opacity(0.055)
+    static let surfaceOverlayHover = Color.white.opacity(0.10)
 }
 
 enum NotchPage: String, CaseIterable, Identifiable {

@@ -2,27 +2,16 @@ import SwiftUI
 
 struct ExpandedNotchView: View {
     @Environment(NotchState.self) private var state
+    @Namespace private var tabNamespace
 
     var body: some View {
         ZStack(alignment: .top) {
-            // Ambient background — artwork bloom behind everything
+            // Ambient background bloom
             pageBackground
 
             VStack(spacing: 0) {
                 pageTabBar
-                Group {
-                    switch state.currentPage {
-                    case .nowPlaying:
-                        NowPlayingView()
-                    case .shelf:
-                        ShelfView()
-                    case .clipboard:
-                        ClipboardView()
-                    case .widgets:
-                        WidgetPageView()
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                pageContent
             }
         }
     }
@@ -36,59 +25,94 @@ struct ExpandedNotchView: View {
                 // Base dark gradient — always shown for now playing
                 LinearGradient(
                     colors: [
-                        Color(red: 0.1, green: 0.07, blue: 0.18),
-                        Color(red: 0.05, green: 0.07, blue: 0.14)
+                        Color(red: 0.09, green: 0.06, blue: 0.16),
+                        Color(red: 0.04, green: 0.06, blue: 0.12)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
 
-                // Blurred artwork on top when loaded
+                // Blurred artwork bloom
                 if let artwork = state.nowPlaying.artwork {
                     Image(nsImage: artwork)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                        .blur(radius: 55, opaque: true)
-                        .overlay(Color.black.opacity(0.58))
-                        .transition(.opacity.animation(.easeInOut(duration: 0.6)))
+                        .blur(radius: 60, opaque: true)
+                        .overlay(Color.black.opacity(0.60))
+                        .transition(.opacity.animation(.easeInOut(duration: 0.55)))
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .transition(.opacity.animation(.easeInOut(duration: 0.35)))
+            .transition(.opacity.animation(.easeInOut(duration: 0.30)))
         }
     }
 
     // MARK: - Tab Bar
+    // matchedGeometryEffect makes the selection pill slide rather than cross-fade,
+    // which is the single biggest quality signal in the tab bar interaction.
 
     private var pageTabBar: some View {
         HStack(spacing: 2) {
             ForEach(NotchPage.allCases) { page in
                 Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    withAnimation(NotchConstants.tabSpring) {
                         state.currentPage = page
                     }
                 } label: {
                     HStack(spacing: 5) {
                         Image(systemName: page.icon)
                             .font(.system(size: 10, weight: .semibold))
+                            // Active icon gets a tiny upward nudge
+                            .offset(y: state.currentPage == page ? -0.5 : 0)
                         Text(page.rawValue)
                             .font(.system(size: 10, weight: .medium))
                     }
-                    .foregroundStyle(state.currentPage == page ? .white : .white.opacity(0.35))
+                    .foregroundStyle(state.currentPage == page ? .white : .white.opacity(0.32))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     .background {
                         if state.currentPage == page {
                             Capsule()
-                                .fill(.white.opacity(0.12))
+                                .fill(.white.opacity(0.13))
+                                // The namespace key "pill" must be unique per container
+                                .matchedGeometryEffect(id: "tabPill", in: tabNamespace)
                         }
                     }
                 }
                 .buttonStyle(.plain)
+                .animation(NotchConstants.tabSpring, value: state.currentPage)
             }
         }
         .padding(.horizontal, 8)
         .padding(.top, 2)
         .padding(.bottom, 6)
+    }
+
+    // MARK: - Page Content
+
+    @ViewBuilder
+    private var pageContent: some View {
+        Group {
+            switch state.currentPage {
+            case .nowPlaying:
+                NowPlayingView()
+            case .shelf:
+                ShelfView()
+            case .clipboard:
+                ClipboardView()
+            case .widgets:
+                WidgetPageView()
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Subtle slide + fade between pages
+        .transition(
+            .asymmetric(
+                insertion: .opacity.combined(with: .offset(x: 0, y: 4)),
+                removal:   .opacity.combined(with: .offset(x: 0, y: -4))
+            )
+        )
+        .id(state.currentPage)
+        .animation(NotchConstants.tabSpring, value: state.currentPage)
     }
 }

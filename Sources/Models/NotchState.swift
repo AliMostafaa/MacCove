@@ -36,12 +36,18 @@ final class NotchState {
 
     func expand() {
         guard !isExpanded else { return }
-        isExpanded = true
+        // Use the organic open spring — slight overshoot gives life
+        withAnimation(NotchConstants.openSpring) {
+            isExpanded = true
+        }
     }
 
     func collapse() {
         guard isExpanded else { return }
-        isExpanded = false
+        // Use the crisp close spring — decisive, no dithering
+        withAnimation(NotchConstants.closeSpring) {
+            isExpanded = false
+        }
     }
 
     func toggle() {
