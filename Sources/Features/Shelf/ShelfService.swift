@@ -28,8 +28,8 @@ final class ShelfService {
         }
     }
 
-    /// Save a dropped image to disk then add as a shelf file item.
-    func addImageItem(_ image: NSImage) {
+    /// Save a dropped image to disk then add as an owned shelf item (deleted when removed).
+    func addImageItem(_ image: NSImage, suggestedName: String? = nil) {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let tiff = image.tiffRepresentation,
                   let bitmap = NSBitmapImageRep(data: tiff),
@@ -39,20 +39,44 @@ final class ShelfService {
                 .first!
                 .appendingPathComponent("MacCove/ShelfImages", isDirectory: true)
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            let file = dir.appendingPathComponent("\(UUID().uuidString).png")
+
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
+            let baseName = suggestedName ?? "Image \(formatter.string(from: Date()))"
+            let file = dir.appendingPathComponent("\(baseName).png")
             guard (try? png.write(to: file)) != nil else { return }
 
-            DispatchQueue.main.async { self?.addItem(from: file) }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                guard !self.items.contains(where: { $0.url == file }) else { return }
+                var item = ShelfItem(url: file)
+                item.isOwned = true
+                self.items.insert(item, at: 0)
+                self.generateThumbnail(for: file) { [weak self] image in
+                    DispatchQueue.main.async {
+                        guard let self else { return }
+                        if let index = self.items.firstIndex(where: { $0.id == item.id }) {
+                            self.items[index].thumbnail = image
+                        }
+                    }
+                }
+            }
         }
     }
 
     func removeItem(_ item: ShelfItem) {
         metadataProviders[item.id] = nil
+        if item.isOwned {
+            try? FileManager.default.removeItem(at: item.url)
+        }
         items.removeAll { $0.id == item.id }
     }
 
     func clearAll() {
         metadataProviders.removeAll()
+        for item in items where item.isOwned {
+            try? FileManager.default.removeItem(at: item.url)
+        }
         items.removeAll()
     }
 

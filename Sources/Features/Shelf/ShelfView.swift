@@ -126,6 +126,68 @@ private struct ShelfItemCard: View {
         .onTapGesture {
             state.shelf.openItem(item)
         }
+        .contextMenu {
+            // ── Open ──────────────────────────────────────────────────────────
+            Button {
+                state.shelf.openItem(item)
+            } label: {
+                Label(item.isWebLink ? "Open in Browser" : "Open", systemImage: item.isWebLink ? "safari" : "arrow.up.right.square")
+            }
+
+            // ── Copy Image ────────────────────────────────────────────────────
+            if item.isImage, let image = NSImage(contentsOf: item.url) {
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.writeObjects([image])
+                } label: {
+                    Label("Copy Image", systemImage: "doc.on.doc")
+                }
+            }
+
+            // ── Finder / Copy URL ─────────────────────────────────────────────
+            if item.isWebLink {
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(item.url.absoluteString, forType: .string)
+                } label: {
+                    Label("Copy URL", systemImage: "link")
+                }
+            } else {
+                Button {
+                    state.shelf.revealItem(item)
+                } label: {
+                    Label("Reveal in Finder", systemImage: "folder")
+                }
+
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(item.url.path, forType: .string)
+                } label: {
+                    Label("Copy File Path", systemImage: "doc.on.clipboard")
+                }
+            }
+
+            Divider()
+
+            // ── Share ─────────────────────────────────────────────────────────
+            Button {
+                let picker = NSSharingServicePicker(items: [item.url])
+                if let view = NSApp.keyWindow?.contentView {
+                    picker.show(relativeTo: .zero, of: view, preferredEdge: .minY)
+                }
+            } label: {
+                Label("Share…", systemImage: "square.and.arrow.up")
+            }
+
+            Divider()
+
+            // ── Remove ────────────────────────────────────────────────────────
+            Button(role: .destructive) {
+                withAnimation { state.shelf.removeItem(item) }
+            } label: {
+                Label("Remove from Shelf", systemImage: "trash")
+            }
+        }
         .draggable(item.url) {
             HStack(spacing: 8) {
                 if let thumbnail = item.thumbnail {

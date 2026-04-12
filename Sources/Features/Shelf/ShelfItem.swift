@@ -11,6 +11,8 @@ struct ShelfItem: Identifiable {
     let fileSize: String?
     let fileExtensionLabel: String?
     let dateAdded: Date
+    /// True when MacCove wrote this file to disk (ShelfImages). Removal should delete the file.
+    var isOwned: Bool = false
 
     var isWebLink: Bool {
         url.scheme == "http" || url.scheme == "https"

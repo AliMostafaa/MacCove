@@ -192,6 +192,7 @@ struct ClipboardView: View {
 // MARK: - Row
 
 private struct ClipboardItemRow: View {
+    @Environment(NotchState.self) private var state
     let item: ClipboardItem
     let isSelected: Bool
     let onCopy: () -> Void
@@ -199,6 +200,14 @@ private struct ClipboardItemRow: View {
 
     @State private var isHovering = false
     @State private var copied = false
+
+    // Detect if text looks like a URL
+    private var asURL: URL? {
+        guard let text = item.text?.trimmingCharacters(in: .whitespacesAndNewlines) else { return nil }
+        guard let url = URL(string: text), let scheme = url.scheme,
+              ["http", "https", "ftp"].contains(scheme) else { return nil }
+        return url
+    }
 
     var body: some View {
         HStack(spacing: 10) {
@@ -282,9 +291,105 @@ private struct ClipboardItemRow: View {
         )
         .contentShape(RoundedRectangle(cornerRadius: 10))
         .onTapGesture { onCopy() }
+        .contextMenu { contextMenuItems }
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.12)) { isHovering = hovering }
         }
         .animation(.easeInOut(duration: 0.15), value: isSelected)
+    }
+
+    // MARK: - Context Menu
+
+    @ViewBuilder
+    private var contextMenuItems: some View {
+        // ── Copy ──────────────────────────────────────────────────────────────
+        Button { onCopy() } label: {
+            Label(item.isImage ? "Copy Image" : "Copy", systemImage: "doc.on.doc")
+        }
+
+        if let text = item.text {
+            // ── URL actions ───────────────────────────────────────────────────
+            if let url = asURL {
+                Divider()
+                Button {
+                    NSWorkspace.shared.open(url)
+                } label: {
+                    Label("Open URL", systemImage: "safari")
+                }
+                Button {
+                    state.shelf.addItem(from: url)
+                } label: {
+                    Label("Save to Shelf", systemImage: "tray.and.arrow.down")
+                }
+            }
+
+            // ── Search ────────────────────────────────────────────────────────
+            Divider()
+            let encoded = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+
+            Button {
+                if let url = URL(string: "https://www.google.com/search?q=\(encoded)") {
+                    NSWorkspace.shared.open(url)
+                }
+            } label: {
+                Label("Search Google", systemImage: "magnifyingglass")
+            }
+
+            Button {
+                if let url = URL(string: "https://duckduckgo.com/?q=\(encoded)") {
+                    NSWorkspace.shared.open(url)
+                }
+            } label: {
+                Label("Search DuckDuckGo", systemImage: "magnifyingglass")
+            }
+
+            if asURL == nil {
+                Button {
+                    if let url = URL(string: "https://translate.google.com/?text=\(encoded)") {
+                        NSWorkspace.shared.open(url)
+                    }
+                } label: {
+                    Label("Translate", systemImage: "character.book.closed")
+                }
+            }
+        }
+
+        if let image = item.image {
+            // ── Image actions ─────────────────────────────────────────────────
+            Divider()
+            Button { saveImage(image, to: .desktopDirectory) } label: {
+                Label("Save to Desktop", systemImage: "square.and.arrow.down")
+            }
+            Button { saveImage(image, to: .downloadsDirectory) } label: {
+                Label("Save to Downloads", systemImage: "arrow.down.circle")
+            }
+            Button { saveImageToShelf(image) } label: {
+                Label("Save to Shelf", systemImage: "tray.and.arrow.down")
+            }
+        }
+
+        // ── Destructive ───────────────────────────────────────────────────────
+        Divider()
+        Button(role: .destructive) { onDelete() } label: {
+            Label("Delete", systemImage: "trash")
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func saveImage(_ image: NSImage, to directory: FileManager.SearchPathDirectory) {
+        guard let tiff = image.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: tiff),
+              let png = bitmap.representation(using: .png, properties: [:]) else { return }
+        let folder = FileManager.default.urls(for: directory, in: .userDomainMask).first!
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
+        let name = "Clipboard Image \(formatter.string(from: Date())).png"
+        try? png.write(to: folder.appendingPathComponent(name))
+    }
+
+    private func saveImageToShelf(_ image: NSImage) {
+        state.shelf.addImageItem(image)
     }
 }
