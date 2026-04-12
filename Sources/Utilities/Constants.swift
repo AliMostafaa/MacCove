@@ -2,8 +2,8 @@ import SwiftUI
 
 enum NotchConstants {
     // Collapsed notch dimensions (approximate hardware notch)
-    static let collapsedWidth: CGFloat = 200
-    static let collapsedHeight: CGFloat = 32
+    static let collapsedWidth: CGFloat = 230
+    static let collapsedHeight: CGFloat = 34
     static let collapsedCornerRadius: CGFloat = 12
 
     // Expanded panel dimensions
