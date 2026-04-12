@@ -20,31 +20,7 @@ struct ExpandedNotchView: View {
 
     @ViewBuilder
     private var pageBackground: some View {
-        if state.currentPage == .nowPlaying && state.nowPlaying.hasTrack {
-            ZStack {
-                // Base dark gradient — always shown for now playing
-                LinearGradient(
-                    colors: [
-                        Color(red: 0.09, green: 0.06, blue: 0.16),
-                        Color(red: 0.04, green: 0.06, blue: 0.12)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-
-                // Blurred artwork bloom
-                if let artwork = state.nowPlaying.artwork {
-                    Image(nsImage: artwork)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .blur(radius: 60, opaque: true)
-                        .overlay(Color.black.opacity(0.60))
-                        .transition(.opacity.animation(.easeInOut(duration: 0.55)))
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .transition(.opacity.animation(.easeInOut(duration: 0.30)))
-        }
+        EmptyView()
     }
 
     // MARK: - Tab Bar
@@ -96,8 +72,6 @@ struct ExpandedNotchView: View {
             switch state.currentPage {
             case .dashboard:
                 DashboardView()
-            case .nowPlaying:
-                NowPlayingView()
             case .shelf:
                 ShelfView()
             case .clipboard:
