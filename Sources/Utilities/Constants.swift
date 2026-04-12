@@ -8,12 +8,12 @@ enum NotchConstants {
 
     // Expanded panel dimensions
     static let expandedWidth: CGFloat = 600
-    static let expandedHeight: CGFloat = 340
+    static let expandedHeight: CGFloat = 360
     static let expandedCornerRadius: CGFloat = 24
 
     // Panel canvas (fixed size, larger than expanded)
     static let panelWidth: CGFloat = 720
-    static let panelHeight: CGFloat = 440
+    static let panelHeight: CGFloat = 460
 
     // MARK: - Animation
 

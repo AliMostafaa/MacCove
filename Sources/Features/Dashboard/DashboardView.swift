@@ -86,8 +86,8 @@ struct DashboardView: View {
                 .animation(.easeInOut(duration: 0.2), value: formattedTime)
         }
         .padding(.horizontal, 14)
-        .padding(.top, 6)
-        .padding(.bottom, 7)
+        .padding(.top, 5)
+        .padding(.bottom, 6)
     }
 
     // MARK: - Main Content
@@ -106,7 +106,7 @@ struct DashboardView: View {
                 .padding(.leading, 10)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
     }
@@ -267,21 +267,21 @@ struct DashboardView: View {
     // MARK: - Right Section
 
     private var rightSection: some View {
-        // GeometryReader ensures each row gets exactly half the available height
-        // regardless of content — cards never push the notch larger
+        // Top row is a fixed compact height; Now Playing fills the rest
         GeometryReader { geo in
-            let rowH = max(70, (geo.size.height - 7) / 2)
+            let topRowH: CGFloat = 108
+            let npH = max(80, geo.size.height - topRowH - 7)
             VStack(spacing: 7) {
                 HStack(spacing: 7) {
                     batteryCard.frame(maxWidth: 84)
                     systemCard.frame(maxWidth: .infinity)
                     quickActionsCard.frame(maxWidth: .infinity)
                 }
-                .frame(height: rowH)
+                .frame(height: topRowH)
 
                 nowPlayingCard
                     .frame(maxWidth: .infinity)
-                    .frame(height: rowH)
+                    .frame(height: npH)
             }
         }
     }
@@ -389,7 +389,7 @@ struct DashboardView: View {
     // MARK: - Now Playing Card
 
     private var nowPlayingCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             // Header
             HStack(spacing: 4) {
                 Image(systemName: "music.note")
@@ -448,7 +448,7 @@ struct DashboardView: View {
                         Image(systemName: "backward.fill")
                             .font(.system(size: 12))
                             .foregroundStyle(.white.opacity(0.55))
-                            .frame(width: 32, height: 24)
+                            .frame(width: 32, height: 20)
                     }
                     .buttonStyle(.plain)
 
@@ -458,7 +458,7 @@ struct DashboardView: View {
                         Image(systemName: state.nowPlaying.isPlaying ? "pause.fill" : "play.fill")
                             .font(.system(size: 15))
                             .foregroundStyle(.white)
-                            .frame(width: 36, height: 24)
+                            .frame(width: 36, height: 20)
                     }
                     .buttonStyle(.plain)
 
@@ -468,7 +468,7 @@ struct DashboardView: View {
                         Image(systemName: "forward.fill")
                             .font(.system(size: 12))
                             .foregroundStyle(.white.opacity(0.55))
-                            .frame(width: 32, height: 24)
+                            .frame(width: 32, height: 20)
                     }
                     .buttonStyle(.plain)
                     Spacer()
