@@ -228,45 +228,59 @@ struct DashboardView: View {
             // ── Events panel ───────────────────────────────────────────────
             if selectedDay != nil {
                 Divider()
-                    .overlay(Color.white.opacity(0.07))
-                    .padding(.vertical, 2)
+                    .overlay(Color.white.opacity(0.10))
+                    .padding(.vertical, 3)
 
                 if !calendarAccess {
                     Button {
                         requestCalendarAccess()
                     } label: {
-                        Label("Allow Calendar Access", systemImage: "calendar.badge.exclamationmark")
-                            .font(.system(size: 8, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.4))
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity)
+                        VStack(spacing: 4) {
+                            Image(systemName: "calendar.badge.plus")
+                                .font(.system(size: 14))
+                                .foregroundStyle(NotchConstants.accentGlow.opacity(0.7))
+                            Text("Allow Calendar")
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.55))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(.white.opacity(0.06)))
                     }
                     .buttonStyle(.plain)
                 } else if dayEvents.isEmpty {
-                    HStack(spacing: 4) {
+                    VStack(spacing: 3) {
                         Image(systemName: "calendar")
-                            .font(.system(size: 8))
-                            .foregroundStyle(.white.opacity(0.2))
+                            .font(.system(size: 12))
+                            .foregroundStyle(.white.opacity(0.18))
                         Text("No events")
-                            .font(.system(size: 9))
-                            .foregroundStyle(.white.opacity(0.25))
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.35))
                     }
                     .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.top, 2)
+                    .padding(.top, 6)
                 } else {
-                    ScrollView(.vertical, showsIndicators: false) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            ForEach(dayEvents, id: \.eventIdentifier) { event in
-                                CalendarEventRow(event: event)
-                            }
+                    // Show up to 4 events, then "+N more" label
+                    let maxVisible = 4
+                    let visible = Array(dayEvents.prefix(maxVisible))
+                    let remaining = dayEvents.count - maxVisible
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(visible, id: \.eventIdentifier) { event in
+                            CalendarEventRow(event: event)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        if remaining > 0 {
+                            Text("+\(remaining) more")
+                                .font(.system(size: 8, weight: .medium))
+                                .foregroundStyle(NotchConstants.accentGlow.opacity(0.6))
+                                .padding(.top, 1)
+                        }
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-            } else {
-                Spacer(minLength: 0)
             }
+
+            Spacer(minLength: 0)
         }
         .frame(width: 168)
         .frame(maxHeight: .infinity, alignment: .top)
@@ -842,26 +856,28 @@ private struct CalendarEventRow: View {
     let event: EKEvent
 
     var body: some View {
-        HStack(alignment: .center, spacing: 6) {
+        HStack(alignment: .center, spacing: 5) {
             // Calendar color pill
             RoundedRectangle(cornerRadius: 1.5)
                 .fill(Color(nsColor: event.calendar.color))
-                .frame(width: 3, height: 22)
+                .frame(width: 3, height: 20)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(event.title ?? "Untitled")
                     .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.85))
+                    .foregroundStyle(.white.opacity(0.9))
                     .lineLimit(1)
 
                 Text(event.isAllDay ? "All day" : timeLabel)
-                    .font(.system(size: 8))
-                    .foregroundStyle(.white.opacity(0.38))
+                    .font(.system(size: 7.5))
+                    .foregroundStyle(.white.opacity(0.45))
             }
 
             Spacer(minLength: 0)
         }
-        .padding(.vertical, 1)
+        .padding(.vertical, 2)
+        .padding(.horizontal, 4)
+        .background(RoundedRectangle(cornerRadius: 5).fill(.white.opacity(0.04)))
     }
 
     private var timeLabel: String {

@@ -41,6 +41,7 @@ struct NotchContainerView: View {
                     // Collapsed
                     CollapsedNotchView()
                         .opacity(state.isExpanded ? 0 : 1)
+                        .allowsHitTesting(!state.isExpanded)
 
                     // Expanded
                     ExpandedNotchView()
@@ -50,9 +51,9 @@ struct NotchContainerView: View {
                         )
                         .padding(.top, 12)
                         .opacity(contentOpacity)
+                        .allowsHitTesting(state.isExpanded)
                 }
                 .clipShape(NotchShapeWithEars(progress: state.isExpanded ? 1 : 0))
-                .drawingGroup(opaque: false)
             }
             // Single animation drives EVERYTHING — shape, clip, shadows, opacity
             .animation(NotchConstants.spring, value: state.isExpanded)
