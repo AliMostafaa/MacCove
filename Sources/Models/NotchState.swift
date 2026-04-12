@@ -4,7 +4,7 @@ import SwiftUI
 final class NotchState {
     var isExpanded = false
     var isDragHovering = false
-    var currentPage: NotchPage = .nowPlaying
+    var currentPage: NotchPage = .dashboard
     var notchRect: CGRect = .zero
     var screenWithNotch: NSScreen?
     var hasNotch: Bool = false

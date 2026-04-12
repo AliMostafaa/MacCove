@@ -22,7 +22,8 @@ let package = Package(
                 .linkedFramework("Carbon"),
                 .linkedFramework("LinkPresentation"),
                 .linkedFramework("CoreWLAN"),
-                .linkedFramework("Network")
+                .linkedFramework("Network"),
+                .linkedFramework("EventKit")
             ]
         )
     ]

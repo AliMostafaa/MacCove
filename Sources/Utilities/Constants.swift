@@ -47,19 +47,19 @@ enum NotchConstants {
 }
 
 enum NotchPage: String, CaseIterable, Identifiable {
+    case dashboard  = "Home"
     case nowPlaying = "Now Playing"
-    case shelf = "Shelf"
-    case clipboard = "Clipboard"
-    case widgets = "Widgets"
+    case shelf      = "Shelf"
+    case clipboard  = "Clipboard"
 
     var id: String { rawValue }
 
     var icon: String {
         switch self {
+        case .dashboard:  return "house"
         case .nowPlaying: return "music.note"
-        case .shelf: return "tray.and.arrow.down"
-        case .clipboard: return "doc.on.clipboard"
-        case .widgets: return "square.grid.2x2"
+        case .shelf:      return "tray.and.arrow.down"
+        case .clipboard:  return "doc.on.clipboard"
         }
     }
 }

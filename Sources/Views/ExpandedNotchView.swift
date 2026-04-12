@@ -94,14 +94,14 @@ struct ExpandedNotchView: View {
     private var pageContent: some View {
         Group {
             switch state.currentPage {
+            case .dashboard:
+                DashboardView()
             case .nowPlaying:
                 NowPlayingView()
             case .shelf:
                 ShelfView()
             case .clipboard:
                 ClipboardView()
-            case .widgets:
-                WidgetPageView()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
