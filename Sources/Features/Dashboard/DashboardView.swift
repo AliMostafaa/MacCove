@@ -53,11 +53,8 @@ struct DashboardView: View {
         }
         .onAppear {
             // Defer all I/O until the opening animation settles (~500ms).
-            // Battery/system/EventKit queries block the main thread for 5-15ms
-            // which causes visible frame drops during the spring's first frames.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                updateBattery()
-                updateSystem()
+                refreshData()
                 let status = EKEventStore.authorizationStatus(for: .event)
                 if status == .fullAccess {
                     calendarAccess = true
@@ -73,16 +70,14 @@ struct DashboardView: View {
         }
         .onReceive(dataTimer) { _ in
             guard state.isExpanded else { return }
-            updateBattery()
-            if statsExpanded { updateSystem() }
+            refreshData()
         }
         .onChange(of: state.isExpanded) { _, expanded in
             if expanded {
                 // Refresh data after animation settles
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     now = Date()
-                    updateBattery()
-                    if statsExpanded { updateSystem() }
+                    refreshData()
                 }
             }
         }
@@ -638,13 +633,16 @@ struct DashboardView: View {
         }
     }
 
-    private var formattedTime: String {
-        let f = DateFormatter(); f.dateFormat = "h:mm"; return f.string(from: now)
-    }
+    // Cached formatters — avoid allocating a new DateFormatter every second
+    private static let timeFmt: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "h:mm"; return f
+    }()
+    private static let dateFmt: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "EEEE, MMMM d"; return f
+    }()
 
-    private var formattedDate: String {
-        let f = DateFormatter(); f.dateFormat = "EEEE, MMMM d"; return f.string(from: now)
-    }
+    private var formattedTime: String { Self.timeFmt.string(from: now) }
+    private var formattedDate: String { Self.dateFmt.string(from: now) }
 
     // MARK: - Calendar helpers
 
@@ -668,15 +666,91 @@ struct DashboardView: View {
 
     private var todayDay: Int { Calendar.current.component(.day, from: Date()) }
 
-    private var monthString: String {
-        let f = DateFormatter(); f.dateFormat = "MMMM"; return f.string(from: displayMonth)
-    }
+    private static let monthFmt: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "MMMM"; return f
+    }()
+    private static let yearFmt: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "yyyy"; return f
+    }()
 
-    private var yearString: String {
-        let f = DateFormatter(); f.dateFormat = "yyyy"; return f.string(from: displayMonth)
-    }
+    private var monthString: String { Self.monthFmt.string(from: displayMonth) }
+    private var yearString: String { Self.yearFmt.string(from: displayMonth) }
 
     // MARK: - Data
+
+    /// Runs battery + system queries off the main thread, then posts results back.
+    /// Prevents IOKit / host_statistics64 syscalls from blocking SwiftUI's render loop.
+    private func refreshData() {
+        let needsSystem = statsExpanded
+        let mon = cpuMon
+        DispatchQueue.global(qos: .userInitiated).async {
+            // Battery
+            var bl = 0, wt = 0.0, ic = false, ip = false, bt = ""
+            if let snap = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
+               let srcs = IOPSCopyPowerSourcesList(snap)?.takeRetainedValue() as? [Any],
+               let src  = srcs.first,
+               let info = IOPSGetPowerSourceDescription(snap, src as CFTypeRef)?.takeUnretainedValue() as? [String: Any] {
+                bl = info[kIOPSCurrentCapacityKey] as? Int  ?? 0
+                ic = info[kIOPSIsChargingKey]      as? Bool ?? false
+                ip = (info[kIOPSPowerSourceStateKey] as? String) == kIOPSACPowerValue
+            }
+            let svc = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))
+            if svc != IO_OBJECT_NULL {
+                defer { IOObjectRelease(svc) }
+                func p<T>(_ k: String) -> T? {
+                    IORegistryEntryCreateCFProperty(svc, k as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? T
+                }
+                let v: Int = p("Voltage") ?? 0
+                var a: Int = p("InstantAmperage") ?? 0
+                if a == 0 { a = p("Amperage") ?? 0 }
+                if a > 2_000_000_000 { a -= 4_294_967_296 }
+                wt = (v > 0 && a != 0) ? abs(Double(a) * Double(v)) / 1_000_000.0 : 0
+                if !ip {
+                    let t: Int = p("TimeRemaining") ?? 0
+                    let mins = (t > 0 && t < 65535) ? t : (p("AvgTimeToEmpty") ?? 0)
+                    if mins > 0 && mins < 65535 {
+                        let h = mins / 60, m = mins % 60
+                        bt = h > 0 ? "\(h)h \(m)m left" : "\(m)m left"
+                    }
+                } else if ic {
+                    let mins: Int = p("AvgTimeToFull") ?? 0
+                    if mins > 0 && mins < 65535 {
+                        let h = mins / 60, m = mins % 60
+                        bt = h > 0 ? "\(h)h \(m)m to full" : "\(m)m to full"
+                    }
+                }
+            }
+            // System stats
+            var cu = 0.0, ruGB = 0.0, rtGB = 0.0
+            if needsSystem {
+                cu = mon.currentUsage()
+                rtGB = Double(ProcessInfo.processInfo.physicalMemory) / 1_073_741_824
+                var vm  = vm_statistics64()
+                var cnt = mach_msg_type_number_t(MemoryLayout<vm_statistics64>.size / MemoryLayout<integer_t>.size)
+                let r   = withUnsafeMutablePointer(to: &vm) { ptr in
+                    ptr.withMemoryRebound(to: integer_t.self, capacity: Int(cnt)) {
+                        host_statistics64(mach_host_self(), HOST_VM_INFO64, $0, &cnt)
+                    }
+                }
+                if r == KERN_SUCCESS {
+                    let page = Double(vm_kernel_page_size)
+                    ruGB = (Double(vm.internal_page_count) + Double(vm.wire_count) + Double(vm.compressor_page_count)) * page / 1_073_741_824
+                }
+            }
+            DispatchQueue.main.async {
+                batteryLevel = bl
+                isCharging = ic
+                isPluggedIn = ip
+                watts = wt
+                batteryTime = bt
+                if needsSystem {
+                    cpuUsage = cu
+                    ramTotalGB = rtGB
+                    ramUsedGB = ruGB
+                }
+            }
+        }
+    }
 
     private func updateBattery() {
         if let snap = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
@@ -817,16 +891,18 @@ private struct DashGauge: View {
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
                     .foregroundStyle(color)
             }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(.white.opacity(0.08))
+            Capsule().fill(.white.opacity(0.08))
+                .frame(height: 4)
+                .overlay(alignment: .leading) {
                     Capsule()
                         .fill(color)
-                        .frame(width: geo.size.width * min(value / 100, 1))
+                        .frame(
+                            width: nil,   // determined by scaleEffect below
+                            height: 4
+                        )
+                        .scaleEffect(x: min(max(value / 100, 0), 1), y: 1, anchor: .leading)
                         .animation(.easeInOut(duration: 0.5), value: value)
                 }
-            }
-            .frame(height: 4)
         }
     }
 }
@@ -891,11 +967,13 @@ private struct CalendarEventRow: View {
         .background(RoundedRectangle(cornerRadius: 5).fill(.white.opacity(0.04)))
     }
 
+    private static let eventTimeFmt: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "h:mm a"; return f
+    }()
+
     private var timeLabel: String {
-        let f = DateFormatter()
-        f.dateFormat = "h:mm a"
-        let start = f.string(from: event.startDate)
-        let end   = f.string(from: event.endDate)
+        let start = Self.eventTimeFmt.string(from: event.startDate)
+        let end   = Self.eventTimeFmt.string(from: event.endDate)
         return "\(start) – \(end)"
     }
 }
@@ -927,43 +1005,44 @@ private struct DashSeekBar: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            // Track
-            GeometryReader { geo in
-                let w = geo.size.width
-                ZStack(alignment: .leading) {
-                    Capsule().fill(.white.opacity(0.1))
-                    Capsule()
-                        .fill(NotchConstants.accentGlow.opacity(isDragging ? 1.0 : 0.75))
-                        .frame(width: max(0, w * displayProgress))
-                        .animation(isDragging ? nil : .linear(duration: 0.5), value: displayProgress)
-                    // Thumb
-                    Circle()
-                        .fill(.white)
-                        .frame(width: 8, height: 8)
-                        .offset(x: max(0, w * displayProgress - 4))
-                        .shadow(color: .black.opacity(0.25), radius: 2)
-                }
-                .frame(height: 4)
-                .frame(maxHeight: .infinity)
-                .contentShape(Rectangle())
-                .onTapGesture { location in
-                    seek(to: max(0, min(location.x / w, 1)))
-                }
-                .gesture(
-                    DragGesture(minimumDistance: 1)
-                        .onChanged { value in
-                            isDragging = true
-                            dragProgress = max(0, min(value.location.x / w, 1))
-                        }
-                        .onEnded { value in
-                            seek(to: max(0, min(value.location.x / w, 1)))
-                            isDragging = false
-                        }
-                )
+            // Track — uses scaleEffect instead of GeometryReader to avoid
+            // double layout passes on every 1-second progress update.
+            ZStack(alignment: .leading) {
+                Capsule().fill(.white.opacity(0.1))
+                Capsule()
+                    .fill(NotchConstants.accentGlow.opacity(isDragging ? 1.0 : 0.75))
+                    .scaleEffect(x: max(0.001, displayProgress), y: 1, anchor: .leading)
+                    .animation(isDragging ? nil : .linear(duration: 0.5), value: displayProgress)
+                // Thumb — positioned via alignment guide
+                Circle()
+                    .fill(.white)
+                    .frame(width: 8, height: 8)
+                    .shadow(color: .black.opacity(0.25), radius: 2)
+                    .alignmentGuide(.leading) { d in
+                        d[.leading] - (trackWidth * displayProgress - 4)
+                    }
             }
-            .frame(height: 10)
+            .frame(height: 4)
+            .frame(maxHeight: 10)
+            .contentShape(Rectangle())
+            .coordinateSpace(name: "seekTrack")
+            .onTapGesture { location in
+                let p = max(0, min(location.x / trackWidth, 1))
+                seek(to: p)
+            }
+            .gesture(
+                DragGesture(minimumDistance: 1, coordinateSpace: .named("seekTrack"))
+                    .onChanged { value in
+                        isDragging = true
+                        dragProgress = max(0, min(value.location.x / trackWidth, 1))
+                    }
+                    .onEnded { value in
+                        seek(to: max(0, min(value.location.x / trackWidth, 1)))
+                        isDragging = false
+                    }
+            )
 
-            // Time labels — always shown
+            // Time labels
             HStack {
                 Text(formattedTime(displayProgress * duration))
                     .font(.system(size: 8, design: .monospaced))
@@ -974,6 +1053,15 @@ private struct DashSeekBar: View {
                     .foregroundStyle(.white.opacity(0.25))
             }
         }
+    }
+
+    // The seek bar lives inside the nowPlayingCard which fills the right
+    // section. The track width is predictable from the layout constants.
+    private var trackWidth: CGFloat {
+        // rightSection width ≈ expandedWidth - calendarWidth(168) - divider(1) - paddings
+        // nowPlayingCard has 10px padding on each side
+        let rightW = NotchConstants.expandedWidth - 32 - 168 - 1 - 10 - 10 - 12 - 12
+        return max(rightW - 20, 100)  // 20 for inner padding
     }
 }
 
