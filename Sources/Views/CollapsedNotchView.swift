@@ -148,9 +148,9 @@ private struct MusicEqualizer: View {
 
     private func startTimer() {
         randomise()
-        // 1.5s interval with 0.35s animation = ~23% duty cycle
-        // CPU is zero during the ~1.15s idle gap between animations
-        timer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { _ in
+        // 2.0s interval with 0.18s animation = ~9% duty cycle
+        // CPU is zero during the ~1.82s idle gap between animations
+        timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
             randomise()
         }
     }

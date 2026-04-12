@@ -102,8 +102,9 @@ struct DashboardView: View {
                 .font(.system(size: 26, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white)
                 .monospacedDigit()
-                .contentTransition(.numericText())
-                .animation(.easeInOut(duration: 0.2), value: formattedTime)
+                // Removed .contentTransition(.numericText()) — it triggers a
+                // ~200ms display-link animation every 1s clock tick, costing 8-15% CPU.
+                // The time digits still update cleanly without animation.
         }
         .padding(.horizontal, 14)
         .padding(.top, 5)
@@ -1012,7 +1013,7 @@ private struct DashSeekBar: View {
                 Capsule()
                     .fill(NotchConstants.accentGlow.opacity(isDragging ? 1.0 : 0.75))
                     .scaleEffect(x: max(0.001, displayProgress), y: 1, anchor: .leading)
-                    .animation(isDragging ? nil : .linear(duration: 0.5), value: displayProgress)
+                    .animation(isDragging ? nil : .linear(duration: 0.15), value: displayProgress)
                 // Thumb — positioned via alignment guide
                 Circle()
                     .fill(.white)
@@ -1021,6 +1022,7 @@ private struct DashSeekBar: View {
                     .alignmentGuide(.leading) { d in
                         d[.leading] - (trackWidth * displayProgress - 4)
                     }
+                    .animation(isDragging ? nil : .linear(duration: 0.15), value: displayProgress)
             }
             .frame(height: 4)
             .frame(maxHeight: 10)
