@@ -4,90 +4,58 @@ import UniformTypeIdentifiers
 struct NotchContainerView: View {
     @Environment(NotchState.self) private var state
 
-    // Decouples content entrance from shape expansion:
-    // shape grows first, THEN content fades in
-    @State private var showExpandedContent = false
+    // Content opacity is decoupled so it fades slightly behind the shape morph.
+    @State private var contentOpacity: Double = 0
 
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
 
-                // ── Background shape — morphs between collapsed & expanded ──
+                // ── Shape ─────────────────────────────────────────────────────
+                // One shape, one spring. This IS the animation.
                 NotchShapeWithEars(progress: state.isExpanded ? 1 : 0)
                     .fill(state.isExpanded
                           ? NotchConstants.expandedBackground
                           : NotchConstants.notchBackground)
-                    // Deep ambient shadow — always present, just much softer when collapsed
-                    // Never goes to radius 0 so the animation interpolates smoothly (no pop)
                     .shadow(
-                        color: .black.opacity(state.isExpanded ? 0.42 : 0.12),
-                        radius: state.isExpanded ? 24 : 4,
+                        color: .black.opacity(state.isExpanded ? 0.40 : 0.10),
+                        radius: state.isExpanded ? 22 : 4,
                         x: 0, y: state.isExpanded ? 10 : 2
                     )
-                    // Mid shadow — adds depth right at the bottom edge
                     .shadow(
-                        color: .black.opacity(state.isExpanded ? 0.18 : 0.05),
-                        radius: state.isExpanded ? 8 : 2,
-                        x: 0, y: state.isExpanded ? 4 : 1
+                        color: .black.opacity(state.isExpanded ? 0.16 : 0.04),
+                        radius: state.isExpanded ? 7 : 2,
+                        x: 0, y: state.isExpanded ? 3 : 1
                     )
-                    // Subtle accent bloom — very faint, just a hint of colour
                     .shadow(
-                        color: NotchConstants.accentGlow.opacity(state.isExpanded ? 0.06 : 0),
-                        radius: state.isExpanded ? 32 : 2,
-                        x: 0, y: state.isExpanded ? 16 : 0
-                    )
-                    // Shape morph animates on the same spring as the content
-                    .animation(
-                        state.isExpanded ? NotchConstants.openSpring : NotchConstants.closeSpring,
-                        value: state.isExpanded
+                        color: NotchConstants.accentGlow.opacity(state.isExpanded ? 0.05 : 0.01),
+                        radius: state.isExpanded ? 28 : 3,
+                        x: 0, y: state.isExpanded ? 14 : 0
                     )
 
-                // ── Content — always clipped to the live notch shape ────────
-                Group {
-                    if state.isExpanded && showExpandedContent {
-                        // Shape has already grown — now content blooms in
-                        ExpandedNotchView()
-                            .frame(
-                                width:  NotchConstants.expandedWidth  - 32,
-                                height: NotchConstants.expandedHeight - 20
-                            )
-                            .padding(.top, 12)
-                            .transition(.asymmetric(
-                                insertion: .opacity.combined(
-                                    with: .scale(scale: 0.97, anchor: .top)
-                                ),
-                                removal: .opacity
-                            ))
-                    } else if !state.isExpanded {
-                        CollapsedNotchView()
-                            .transition(.asymmetric(
-                                insertion: .opacity,
-                                removal:   .opacity
-                            ))
-                    }
-                    // While isExpanded but !showExpandedContent: render nothing —
-                    // shape is growing but content hasn't appeared yet
+                // ── Content ───────────────────────────────────────────────────
+                // Both views always exist — no if/else branching, no view
+                // identity changes, no competing transitions. The shape
+                // reveals them through the clip; opacity does the rest.
+                ZStack(alignment: .top) {
+                    // Collapsed
+                    CollapsedNotchView()
+                        .opacity(state.isExpanded ? 0 : 1)
+
+                    // Expanded
+                    ExpandedNotchView()
+                        .frame(
+                            width:  NotchConstants.expandedWidth  - 32,
+                            height: NotchConstants.expandedHeight - 20
+                        )
+                        .padding(.top, 12)
+                        .opacity(contentOpacity)
                 }
-                // Clip content to the animating notch shape — zero bleed
                 .clipShape(NotchShapeWithEars(progress: state.isExpanded ? 1 : 0))
-                .animation(
-                    state.isExpanded ? NotchConstants.openSpring : NotchConstants.closeSpring,
-                    value: state.isExpanded
-                )
-                .onChange(of: state.isExpanded) { _, expanded in
-                    if expanded {
-                        // Let the shape grow for ~160 ms, then fade content in
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
-                            withAnimation(.spring(response: 0.32, dampingFraction: 0.84)) {
-                                showExpandedContent = true
-                            }
-                        }
-                    } else {
-                        // Content must vanish instantly so the shrinking shape clips cleanly
-                        showExpandedContent = false
-                    }
-                }
+                .drawingGroup(opaque: false)
             }
+            // Single animation drives EVERYTHING — shape, clip, shadows, opacity
+            .animation(NotchConstants.spring, value: state.isExpanded)
             .frame(width: NotchConstants.panelWidth, height: NotchConstants.panelHeight, alignment: .top)
             .onDrop(of: [.fileURL, .url, .image], isTargeted: Binding(
                 get: { state.isDragHovering },
@@ -101,6 +69,19 @@ struct NotchContainerView: View {
             )) { providers in
                 handleDrop(providers)
                 return true
+            }
+            .onChange(of: state.isExpanded) { _, expanded in
+                if expanded {
+                    // Fade content in slightly after the shape starts growing
+                    withAnimation(.easeOut(duration: 0.25).delay(0.12)) {
+                        contentOpacity = 1
+                    }
+                } else {
+                    // Fade content out quickly, shape shrinks around it
+                    withAnimation(.easeIn(duration: 0.12)) {
+                        contentOpacity = 0
+                    }
+                }
             }
         }
         .frame(width: NotchConstants.panelWidth, height: NotchConstants.panelHeight, alignment: .top)
@@ -120,7 +101,7 @@ struct NotchContainerView: View {
             if provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
                 provider.loadItem(forTypeIdentifier: UTType.url.identifier) { item, _ in
                     var resolvedURL: URL?
-                    if let url  = item as? URL    { resolvedURL = url }
+                    if let url    = item as? URL    { resolvedURL = url }
                     else if let data   = item as? Data   { resolvedURL = URL(dataRepresentation: data, relativeTo: nil) }
                     else if let string = item as? String, let url = URL(string: string) { resolvedURL = url }
                     guard let url = resolvedURL else { return }

@@ -17,16 +17,14 @@ enum NotchConstants {
 
     // MARK: - Animation
 
-    /// Opening: organic, slight bounce — feels alive
-    static let openSpring  = Animation.spring(response: 0.46, dampingFraction: 0.72)
-    /// Closing: decisive, well-damped — shape and content finish together
-    static let closeSpring = Animation.spring(response: 0.34, dampingFraction: 0.90)
-    /// Content entrance (kept for legacy call-sites)
-    static let contentEntrance = Animation.spring(response: 0.38, dampingFraction: 0.84)
-    /// Tab pill slide: very snappy
-    static let tabSpring = Animation.spring(response: 0.26, dampingFraction: 0.80)
+    /// One spring to rule them all — shape, clip, shadows, everything moves as one.
+    /// Apple's sheets/popovers use a single well-tuned spring; so do we.
+    /// response 0.45: not sluggish, not twitchy
+    /// damping  0.86: tiny controlled overshoot, then settles — feels alive
+    static let spring = Animation.spring(response: 0.45, dampingFraction: 0.86)
 
-    static let contentFadeDelay: Double = 0.07
+    /// Tab pill slide: snappy but not jarring
+    static let tabSpring = Animation.spring(response: 0.26, dampingFraction: 0.80)
 
     // Hover detection
     static let hoverPadding: CGFloat = 25

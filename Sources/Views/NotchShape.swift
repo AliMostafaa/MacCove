@@ -3,6 +3,9 @@ import SwiftUI
 /// Morphing notch shape with hardware-style "ears" that blend into the screen edge.
 /// Uses arc-tangent corners (circular, not quadratic) and cubic-bezier ears for
 /// the premium organic feel of a machined surface.
+///
+/// One unified motion: width and height grow together on the same curve.
+/// Apple never splits axes — everything moves as one.
 struct NotchShapeWithEars: Shape, Animatable {
     var progress: CGFloat // 0 = collapsed, 1 = expanded
 
@@ -16,7 +19,6 @@ struct NotchShapeWithEars: Shape, Animatable {
         let h = lerp(NotchConstants.collapsedHeight, NotchConstants.expandedHeight, progress)
         let r = lerp(NotchConstants.collapsedCornerRadius, NotchConstants.expandedCornerRadius, progress)
 
-        // Ear size: how far the transition curve extends horizontally past the notch edge
         let earSize: CGFloat = lerp(9, 18, progress)
 
         let cx = rect.midX
@@ -26,25 +28,18 @@ struct NotchShapeWithEars: Shape, Animatable {
         var path = Path()
 
         // ── Left ear ──────────────────────────────────────────────────────────
-        // Start on screen top, just outside the notch left edge
         path.move(to: CGPoint(x: x - earSize, y: y))
 
-        // Cubic-bezier ear: tangent exits horizontally, enters vertically.
-        // The asymmetric control points create a graceful S-like transition
-        // that matches the hardware notch's machined chamfer.
         path.addCurve(
-            to:       CGPoint(x: x,             y: y + earSize),
+            to:       CGPoint(x: x,                  y: y + earSize),
             control1: CGPoint(x: x - earSize * 0.14, y: y),
-            control2: CGPoint(x: x,             y: y + earSize * 0.14)
+            control2: CGPoint(x: x,                  y: y + earSize * 0.14)
         )
 
         // Left side straight down
         path.addLine(to: CGPoint(x: x, y: y + h - r))
 
-        // Bottom-left corner — circular arc via tangent method.
-        // addArc(tangent1End:tangent2End:radius:) draws a true arc inscribed
-        // between the two line segments, giving perfectly circular corners
-        // (identical to how Apple draws UIBezierPath rounded rects).
+        // Bottom-left corner
         path.addArc(
             tangent1End: CGPoint(x: x,     y: y + h),
             tangent2End: CGPoint(x: x + r, y: y + h),
@@ -54,7 +49,7 @@ struct NotchShapeWithEars: Shape, Animatable {
         // Bottom edge
         path.addLine(to: CGPoint(x: x + w - r, y: y + h))
 
-        // Bottom-right corner — circular arc
+        // Bottom-right corner
         path.addArc(
             tangent1End: CGPoint(x: x + w,     y: y + h),
             tangent2End: CGPoint(x: x + w,     y: y + h - r),
@@ -65,7 +60,6 @@ struct NotchShapeWithEars: Shape, Animatable {
         path.addLine(to: CGPoint(x: x + w, y: y + earSize))
 
         // ── Right ear ─────────────────────────────────────────────────────────
-        // Mirror of the left ear
         path.addCurve(
             to:       CGPoint(x: x + w + earSize,        y: y),
             control1: CGPoint(x: x + w,                  y: y + earSize * 0.14),

@@ -54,7 +54,15 @@ struct DashboardView: View {
         .onAppear {
             updateBattery()
             updateSystem()
-            requestCalendarAccess()
+            // Check existing auth status synchronously so events load immediately
+            // without waiting for the async requestFullAccessToEvents round-trip
+            let status = EKEventStore.authorizationStatus(for: .event)
+            if status == .fullAccess {
+                calendarAccess = true
+                fetchEvents()
+            } else {
+                requestCalendarAccess()
+            }
         }
         .onReceive(clockTimer) { now = $0 }
         .onReceive(dataTimer) { _ in
@@ -261,6 +269,7 @@ struct DashboardView: View {
             }
         }
         .frame(width: 168)
+        .frame(maxHeight: .infinity, alignment: .top)
         .clipped()
     }
 

@@ -49,14 +49,14 @@ final class NotchState {
 
     func expand() {
         guard !isExpanded else { return }
-        withAnimation(NotchConstants.openSpring) {
+        withAnimation(NotchConstants.spring) {
             isExpanded = true
         }
     }
 
     func collapse() {
         guard isExpanded else { return }
-        withAnimation(NotchConstants.closeSpring) {
+        withAnimation(NotchConstants.spring) {
             isExpanded = false
         }
     }
