@@ -21,6 +21,19 @@ final class NotchState {
     // Prevents hover monitor from auto-collapsing when opened via keyboard
     var isKeyboardPinned: Bool = false
 
+    // Clipboard search
+    var isClipboardSearchActive: Bool = false
+    var clipboardSearchQuery: String = ""
+
+    var filteredClipboardItems: [ClipboardItem] {
+        let q = clipboardSearchQuery.lowercased().trimmingCharacters(in: .whitespaces)
+        guard isClipboardSearchActive, !q.isEmpty else { return clipboard.items }
+        return clipboard.items.filter { item in
+            if let text = item.text { return text.lowercased().contains(q) }
+            return "image".contains(q)
+        }
+    }
+
     // Computed
     var currentWidth: CGFloat {
         isExpanded ? NotchConstants.expandedWidth : NotchConstants.collapsedWidth
@@ -36,7 +49,6 @@ final class NotchState {
 
     func expand() {
         guard !isExpanded else { return }
-        // Use the organic open spring — slight overshoot gives life
         withAnimation(NotchConstants.openSpring) {
             isExpanded = true
         }
@@ -44,7 +56,6 @@ final class NotchState {
 
     func collapse() {
         guard isExpanded else { return }
-        // Use the crisp close spring — decisive, no dithering
         withAnimation(NotchConstants.closeSpring) {
             isExpanded = false
         }

@@ -14,9 +14,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // Clipboard shortcut state
     private var previousFrontmostApp: NSRunningApplication?
     private var carbonHotKeyRef: EventHotKeyRef?
+    private var bracketLeftRef: EventHotKeyRef?
+    private var bracketRightRef: EventHotKeyRef?
     private var carbonEventHandler: EventHandlerRef?
     private var navigationEventTap: CFMachPort?
     private var navigationRunLoopSource: CFRunLoopSource?
+
+    // Page navigation via scroll/swipe
+    private var scrollWheelMonitor: Any?
+    private var lastPageNavigationTime: TimeInterval = 0
+    private var scrollAccumulator: CGFloat = 0
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -25,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupNotch()
         setupNowPlaying()
         setupClipboard()
+        setupPageNavigation()
     }
 
     // MARK: - Status Bar
@@ -86,11 +94,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupClipboard() {
         notchState.clipboard.start()
 
-        // Request Accessibility — enables CGEventTap for navigation key capture
         let opts = [kAXTrustedCheckOptionPrompt.takeRetainedValue() as String: true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(opts)
 
-        // Register global hotkey via Carbon (works without Input Monitoring permission)
         registerCarbonHotKey()
     }
 
@@ -104,58 +110,83 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         InstallEventHandler(
             GetApplicationEventTarget(),
-            { (_, _, userData) -> OSStatus in
-                guard let userData else { return noErr }
+            { (_, event, userData) -> OSStatus in
+                guard let userData, let event else { return noErr }
+                var hkID = EventHotKeyID()
+                GetEventParameter(
+                    event,
+                    EventParamName(kEventParamDirectObject),
+                    EventParamType(typeEventHotKeyID),
+                    nil,
+                    MemoryLayout<EventHotKeyID>.size,
+                    nil,
+                    &hkID
+                )
                 let delegate = Unmanaged<AppDelegate>.fromOpaque(userData).takeUnretainedValue()
-                DispatchQueue.main.async { delegate.clipboardShortcutTriggered() }
+                switch hkID.id {
+                case 1: DispatchQueue.main.async { delegate.clipboardShortcutTriggered() }
+                case 2: DispatchQueue.main.async { delegate.navigatePage(by: -1) }
+                case 3: DispatchQueue.main.async { delegate.navigatePage(by: +1) }
+                default: break
+                }
                 return noErr
             },
             1, &eventType, ptr, &carbonEventHandler
         )
 
-        let hotKeyID = EventHotKeyID(signature: OSType(0x6D4E6F74), id: 1)
-        // Shift+Cmd+V  (kVK_ANSI_V = 9)
-        RegisterEventHotKey(
-            UInt32(kVK_ANSI_V),
-            UInt32(cmdKey | shiftKey),
-            hotKeyID,
-            GetApplicationEventTarget(),
-            0,
-            &carbonHotKeyRef
-        )
+        let sig = OSType(0x6D4E6F74)
+        // id:1  Shift+Cmd+V — clipboard
+        RegisterEventHotKey(UInt32(kVK_ANSI_V), UInt32(cmdKey | shiftKey),
+                            EventHotKeyID(signature: sig, id: 1),
+                            GetApplicationEventTarget(), 0, &carbonHotKeyRef)
+        // id:2  Cmd+[  — previous page
+        RegisterEventHotKey(UInt32(kVK_ANSI_LeftBracket), UInt32(cmdKey),
+                            EventHotKeyID(signature: sig, id: 2),
+                            GetApplicationEventTarget(), 0, &bracketLeftRef)
+        // id:3  Cmd+]  — next page
+        RegisterEventHotKey(UInt32(kVK_ANSI_RightBracket), UInt32(cmdKey),
+                            EventHotKeyID(signature: sig, id: 3),
+                            GetApplicationEventTarget(), 0, &bracketRightRef)
     }
 
     @objc private func clipboardShortcutTriggered() {
-        // Capture which app the user was in before opening the notch
         previousFrontmostApp = NSWorkspace.shared.frontmostApplication
 
         notchState.selectedClipboardIndex = 0
+        notchState.clipboardSearchQuery = ""
+        notchState.isClipboardSearchActive = true
         notchState.currentPage = .clipboard
         notchState.isKeyboardPinned = true
         notchState.expand()
         windowController?.updateInteractivity()
 
-        // Start a CGEventTap to intercept Up/Down/Enter/Esc without needing focus
         startNavigationEventTap()
     }
 
-    // MARK: - CGEventTap for navigation
+    // MARK: - CGEventTap
 
     private func startNavigationEventTap() {
-        // Stop any existing tap first
         stopNavigationEventTap()
 
         let ptr = UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
         let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
 
-        // Callback must be @convention(c) — no captures, context via userData
         let tapCallback: CGEventTapCallBack = { _, type, event, userData in
             guard let userData, type == .keyDown else {
                 return Unmanaged.passRetained(event)
             }
             let delegate = Unmanaged<AppDelegate>.fromOpaque(userData).takeUnretainedValue()
             let keyCode = Int(event.getIntegerValueField(.keyboardEventKeycode))
-            let consumed = delegate.handleNavigationKey(keyCode: keyCode)
+            let flags = event.flags
+
+            var uniLength = 0
+            var uniChars = [UniChar](repeating: 0, count: 4)
+            event.keyboardGetUnicodeString(maxStringLength: 4, actualStringLength: &uniLength, unicodeString: &uniChars)
+            let typedChar: String? = uniLength > 0
+                ? String(utf16CodeUnits: Array(uniChars.prefix(uniLength)), count: uniLength)
+                : nil
+
+            let consumed = delegate.handleNavigationKey(keyCode: keyCode, flags: flags, typedChar: typedChar)
             return consumed ? nil : Unmanaged.passRetained(event)
         }
 
@@ -166,10 +197,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             eventsOfInterest: mask,
             callback: tapCallback,
             userInfo: ptr
-        ) else {
-            // Accessibility not granted yet — prompt happens at launch
-            return
-        }
+        ) else { return }
 
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         navigationEventTap = tap
@@ -179,41 +207,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func stopNavigationEventTap() {
-        if let tap = navigationEventTap {
-            CGEvent.tapEnable(tap: tap, enable: false)
-        }
-        if let src = navigationRunLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), src, .commonModes)
-        }
+        if let tap = navigationEventTap { CGEvent.tapEnable(tap: tap, enable: false) }
+        if let src = navigationRunLoopSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), src, .commonModes) }
         navigationEventTap = nil
         navigationRunLoopSource = nil
     }
 
-    /// Called from the CGEventTap callback. Returns true if the key was consumed.
     @discardableResult
-    private func handleNavigationKey(keyCode: Int) -> Bool {
+    private func handleNavigationKey(keyCode: Int, flags: CGEventFlags, typedChar: String?) -> Bool {
         guard notchState.isExpanded, notchState.isKeyboardPinned,
               notchState.currentPage == .clipboard else { return false }
 
-        let count = notchState.clipboard.items.count
-        let navigationKeys = [125, 126, 36, 76, 53]
-        guard navigationKeys.contains(keyCode) else { return false }
+        // Let Cmd/Ctrl shortcuts pass through
+        if flags.contains(.maskCommand) || flags.contains(.maskControl) { return false }
 
         DispatchQueue.main.async {
+            let items = self.notchState.filteredClipboardItems
+            let count = items.count
+
             switch keyCode {
-            case 126: // Up arrow
+            case 126: // Up
                 self.notchState.selectedClipboardIndex = max(self.notchState.selectedClipboardIndex - 1, 0)
 
-            case 125: // Down arrow
+            case 125: // Down
                 self.notchState.selectedClipboardIndex = min(self.notchState.selectedClipboardIndex + 1, max(count - 1, 0))
 
-            case 36, 76: // Return / numpad Enter — copy + paste
+            case 36, 76: // Enter — copy + paste
                 guard count > 0 else { return }
                 let idx = self.notchState.selectedClipboardIndex
                 guard idx < count else { return }
-                self.notchState.clipboard.copy(self.notchState.clipboard.items[idx])
+                self.notchState.clipboard.copy(items[idx])
                 self.dismissKeyboardClipboard()
-                // Re-activate previous app, then simulate Cmd+V
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
                     self.previousFrontmostApp?.activate()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
@@ -227,17 +251,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self.previousFrontmostApp?.activate()
                 }
 
+            case 51: // Delete/Backspace
+                if !self.notchState.clipboardSearchQuery.isEmpty {
+                    self.notchState.clipboardSearchQuery.removeLast()
+                    self.notchState.selectedClipboardIndex = 0
+                }
+
             default:
-                break
+                // Printable character → append to search query
+                guard let char = typedChar,
+                      char.unicodeScalars.allSatisfy({ $0.value >= 32 && $0.value != 127 }) else { return }
+                self.notchState.clipboardSearchQuery += char
+                self.notchState.selectedClipboardIndex = 0
             }
         }
 
-        return true // consume the event so it doesn't reach other apps
+        return true
     }
 
     private func dismissKeyboardClipboard() {
         stopNavigationEventTap()
         notchState.isKeyboardPinned = false
+        notchState.isClipboardSearchActive = false
+        notchState.clipboardSearchQuery = ""
         notchState.collapse()
         windowController?.updateInteractivity()
     }
@@ -250,6 +286,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         up?.flags = .maskCommand
         down?.post(tap: .cghidEventTap)
         up?.post(tap: .cghidEventTap)
+    }
+
+    // MARK: - Page Navigation
+
+    private func setupPageNavigation() {
+        scrollWheelMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+            self?.handleScrollWheel(event)
+            return event
+        }
+    }
+
+    private func handleScrollWheel(_ event: NSEvent) {
+        guard notchState.isExpanded else { return }
+
+        let delta = event.scrollingDeltaY != 0 ? event.scrollingDeltaY : event.deltaY * 10
+        guard abs(delta) > 1 else { return }
+
+        scrollAccumulator += delta
+
+        let threshold: CGFloat = 40
+        guard abs(scrollAccumulator) >= threshold else { return }
+
+        let now = Date().timeIntervalSinceReferenceDate
+        guard now - lastPageNavigationTime > 0.35 else {
+            scrollAccumulator = 0
+            return
+        }
+        lastPageNavigationTime = now
+        let direction = scrollAccumulator > 0 ? -1 : 1
+        scrollAccumulator = 0
+        navigatePage(by: direction)
+    }
+
+    private func navigatePage(by direction: Int) {
+        guard notchState.isExpanded else { return }
+        let pages = NotchPage.allCases
+        guard let current = pages.firstIndex(of: notchState.currentPage) else { return }
+        let next = (current + direction + pages.count) % pages.count
+        withAnimation(NotchConstants.tabSpring) {
+            notchState.currentPage = pages[next]
+        }
     }
 
     // MARK: - Actions

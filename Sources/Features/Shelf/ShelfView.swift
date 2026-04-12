@@ -6,7 +6,6 @@ struct ShelfView: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            // Header
             HStack {
                 Text("Drop Zone")
                     .font(.system(size: 13, weight: .semibold))
@@ -42,7 +41,6 @@ struct ShelfView: View {
     private var emptyState: some View {
         VStack(spacing: 12) {
             Spacer()
-
             ZStack {
                 RoundedRectangle(cornerRadius: 14)
                     .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [6, 5]))
@@ -52,11 +50,9 @@ struct ShelfView: View {
                     Image(systemName: "arrow.down.doc")
                         .font(.system(size: 28))
                         .foregroundStyle(.white.opacity(0.2))
-
-                    Text("Drop files here")
+                    Text("Drop files or links here")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.white.opacity(0.25))
-
                     Text("Stored temporarily for quick access")
                         .font(.system(size: 10))
                         .foregroundStyle(.white.opacity(0.15))
@@ -64,7 +60,6 @@ struct ShelfView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-
             Spacer()
         }
     }
@@ -87,7 +82,7 @@ struct ShelfView: View {
     }
 }
 
-// MARK: - Shelf Item Card
+// MARK: - Card
 
 private struct ShelfItemCard: View {
     @Environment(NotchState.self) private var state
@@ -97,17 +92,13 @@ private struct ShelfItemCard: View {
     var body: some View {
         VStack(spacing: 8) {
             ZStack(alignment: .topTrailing) {
-                // Thumbnail
                 thumbnailView
-                    .frame(width: 90, height: 90)
+                    .frame(width: 110, height: 90)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
 
-                // Remove button (appears on hover)
                 if isHovered {
                     Button {
-                        withAnimation {
-                            state.shelf.removeItem(item)
-                        }
+                        withAnimation { state.shelf.removeItem(item) }
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 16))
@@ -119,31 +110,23 @@ private struct ShelfItemCard: View {
                 }
             }
 
-            Text(item.fileName)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.white.opacity(0.6))
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
-                .frame(width: 90)
-        }
-        .padding(6)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(.white.opacity(isHovered ? 0.08 : 0.04))
-        )
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) {
-                isHovered = hovering
+            // Info label
+            if item.isWebLink {
+                linkInfoLabel
+            } else {
+                fileInfoLabel
             }
         }
-        .onTapGesture(count: 2) {
+        .padding(6)
+        .frame(width: 122)
+        .background(RoundedRectangle(cornerRadius: 12).fill(.white.opacity(isHovered ? 0.08 : 0.04)))
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) { isHovered = hovering }
+        }
+        .onTapGesture {
             state.shelf.openItem(item)
         }
-        .onTapGesture(count: 1) {
-            state.shelf.revealItem(item)
-        }
         .draggable(item.url) {
-            // Drag preview
             HStack(spacing: 8) {
                 if let thumbnail = item.thumbnail {
                     Image(nsImage: thumbnail)
@@ -151,7 +134,7 @@ private struct ShelfItemCard: View {
                         .frame(width: 32, height: 32)
                         .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
-                Text(item.fileName)
+                Text(item.displayName)
                     .font(.system(size: 11))
                     .lineLimit(1)
             }
@@ -160,12 +143,59 @@ private struct ShelfItemCard: View {
         }
     }
 
+    // MARK: - Info labels
+
+    private var linkInfoLabel: some View {
+        VStack(spacing: 2) {
+            Text(item.linkTitle ?? item.linkDomain ?? "Link")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.white.opacity(0.7))
+                .lineLimit(1)
+            if let domain = item.linkDomain {
+                Text(domain)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.white.opacity(0.35))
+                    .lineLimit(1)
+            }
+        }
+        .frame(width: 110)
+    }
+
+    private var fileInfoLabel: some View {
+        VStack(spacing: 3) {
+            Text(item.fileName)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.white.opacity(0.6))
+                .lineLimit(1)
+                .frame(width: 110)
+
+            HStack(spacing: 4) {
+                if let ext = item.fileExtensionLabel {
+                    Text(ext)
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.5))
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(Capsule().fill(.white.opacity(0.10)))
+                }
+                if let size = item.fileSize {
+                    Text(size)
+                        .font(.system(size: 9))
+                        .foregroundStyle(.white.opacity(0.3))
+                }
+            }
+        }
+    }
+
+    // MARK: - Thumbnail
+
     @ViewBuilder
     private var thumbnailView: some View {
         if let thumbnail = item.thumbnail {
             Image(nsImage: thumbnail)
                 .resizable()
-                .aspectRatio(contentMode: .fill)
+                .aspectRatio(contentMode: item.isWebLink ? .fit : .fill)
+                .background(Color.white.opacity(0.04))
         } else {
             ZStack {
                 Color.white.opacity(0.06)

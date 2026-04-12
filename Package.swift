@@ -19,7 +19,10 @@ let package = Package(
                 .linkedFramework("QuickLookThumbnailing"),
                 .linkedFramework("IOKit"),
                 .linkedFramework("ServiceManagement"),
-                .linkedFramework("Carbon")
+                .linkedFramework("Carbon"),
+                .linkedFramework("LinkPresentation"),
+                .linkedFramework("CoreWLAN"),
+                .linkedFramework("Network")
             ]
         )
     ]

@@ -7,6 +7,7 @@ struct WidgetPageView: View {
                 ClockWidget()
                 BatteryWidget()
                 SystemStatsWidget()
+                WifiResetWidget()
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)

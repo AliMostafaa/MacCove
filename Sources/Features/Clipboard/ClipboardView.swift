@@ -5,19 +5,69 @@ struct ClipboardView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if state.clipboard.items.isEmpty {
-                emptyState
+            if state.isClipboardSearchActive {
+                searchBar
+            }
+
+            if displayedItems.isEmpty {
+                if state.isClipboardSearchActive {
+                    searchEmptyState
+                } else {
+                    emptyState
+                }
             } else {
-                header
+                if !state.isClipboardSearchActive {
+                    header
+                }
                 itemList
-                keyboardHint
+                if !state.isClipboardSearchActive {
+                    keyboardHint
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // Reset selection when count changes (item removed)
+        .onChange(of: state.clipboardSearchQuery) { _, _ in
+            state.selectedClipboardIndex = 0
+        }
         .onChange(of: state.clipboard.items.count) { _, count in
             state.selectedClipboardIndex = min(state.selectedClipboardIndex, max(count - 1, 0))
         }
+    }
+
+    private var displayedItems: [ClipboardItem] { state.filteredClipboardItems }
+
+    // MARK: - Search Bar
+
+    private var searchBar: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.white.opacity(0.35))
+
+            Text(state.clipboardSearchQuery.isEmpty ? "Type to filter…" : state.clipboardSearchQuery)
+                .font(.system(size: 12))
+                .foregroundStyle(state.clipboardSearchQuery.isEmpty ? .white.opacity(0.25) : .white)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .animation(nil, value: state.clipboardSearchQuery)
+
+            if !state.clipboardSearchQuery.isEmpty {
+                Button { state.clipboardSearchQuery = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.30))
+                }
+                .buttonStyle(.plain)
+                .transition(.opacity.combined(with: .scale(scale: 0.8)))
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(RoundedRectangle(cornerRadius: 8).fill(.white.opacity(0.07)))
+        .padding(.horizontal, 12)
+        .padding(.top, 6)
+        .padding(.bottom, 4)
+        .transition(.opacity.combined(with: .offset(y: -4)))
     }
 
     // MARK: - Header
@@ -49,7 +99,7 @@ struct ClipboardView: View {
         ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 5) {
-                    ForEach(Array(state.clipboard.items.enumerated()), id: \.element.id) { index, item in
+                    ForEach(Array(displayedItems.enumerated()), id: \.element.id) { index, item in
                         ClipboardItemRow(
                             item: item,
                             isSelected: index == state.selectedClipboardIndex
@@ -68,9 +118,9 @@ struct ClipboardView: View {
                 .padding(.vertical, 4)
             }
             .onChange(of: state.selectedClipboardIndex) { _, newIndex in
-                guard newIndex < state.clipboard.items.count else { return }
+                guard newIndex < displayedItems.count else { return }
                 withAnimation(.easeOut(duration: 0.15)) {
-                    proxy.scrollTo(state.clipboard.items[newIndex].id, anchor: .center)
+                    proxy.scrollTo(displayedItems[newIndex].id, anchor: .center)
                 }
             }
         }
@@ -102,7 +152,7 @@ struct ClipboardView: View {
         }
     }
 
-    // MARK: - Empty State
+    // MARK: - Empty States
 
     private var emptyState: some View {
         VStack(spacing: 12) {
@@ -118,10 +168,22 @@ struct ClipboardView: View {
                 Text("No Clipboard History")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.25))
-                Text("Copy text to start tracking")
+                Text("Copy text or images to start tracking")
                     .font(.system(size: 10))
                     .foregroundStyle(.white.opacity(0.14))
             }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var searchEmptyState: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 26, weight: .ultraLight))
+                .foregroundStyle(.white.opacity(0.15))
+            Text("No results")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white.opacity(0.22))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -140,21 +202,36 @@ private struct ClipboardItemRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            // Selection indicator
             RoundedRectangle(cornerRadius: 1.5)
                 .fill(isSelected ? NotchConstants.accentGlow : .clear)
-                .frame(width: 3, height: 28)
+                .frame(width: 3, height: item.isImage ? 44 : 28)
                 .animation(.easeInOut(duration: 0.15), value: isSelected)
 
-            // Text preview
-            Text(item.preview)
-                .font(.system(size: 11))
-                .foregroundStyle(isSelected ? .white : .white.opacity(0.65))
-                .lineLimit(2)
+            if let image = item.image {
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 44, height: 44)
+                    .clipShape(RoundedRectangle(cornerRadius: 7))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Image")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(isSelected ? .white : .white.opacity(0.65))
+                    Text(item.preview)
+                        .font(.system(size: 9))
+                        .foregroundStyle(.white.opacity(0.30))
+                }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .animation(.easeInOut(duration: 0.15), value: isSelected)
+            } else {
+                Text(item.preview)
+                    .font(.system(size: 11))
+                    .foregroundStyle(isSelected ? .white : .white.opacity(0.65))
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .animation(.easeInOut(duration: 0.15), value: isSelected)
+            }
 
-            // Time + actions
             VStack(alignment: .trailing, spacing: 4) {
                 Text(item.timeLabel)
                     .font(.system(size: 9, weight: .medium))
