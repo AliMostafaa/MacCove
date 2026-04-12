@@ -12,7 +12,7 @@ struct DashboardView: View {
 
     // Clock
     @State private var now = Date()
-    private let clockTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    private let clockTimer = Timer.publish(every: 1, on: .main, in: .default).autoconnect()
 
     // Calendar
     @State private var displayMonth = Date()
@@ -43,7 +43,7 @@ struct DashboardView: View {
     @State private var dayEvents: [EKEvent] = []
     @State private var calendarAccess: Bool = false
 
-    private let dataTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
+    private let dataTimer = Timer.publish(every: 5, on: .main, in: .default).autoconnect()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -52,22 +52,39 @@ struct DashboardView: View {
             mainContent
         }
         .onAppear {
-            updateBattery()
-            updateSystem()
-            // Check existing auth status synchronously so events load immediately
-            // without waiting for the async requestFullAccessToEvents round-trip
-            let status = EKEventStore.authorizationStatus(for: .event)
-            if status == .fullAccess {
-                calendarAccess = true
-                fetchEvents()
-            } else {
-                requestCalendarAccess()
+            // Defer all I/O until the opening animation settles (~500ms).
+            // Battery/system/EventKit queries block the main thread for 5-15ms
+            // which causes visible frame drops during the spring's first frames.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                updateBattery()
+                updateSystem()
+                let status = EKEventStore.authorizationStatus(for: .event)
+                if status == .fullAccess {
+                    calendarAccess = true
+                    fetchEvents()
+                } else {
+                    requestCalendarAccess()
+                }
             }
         }
-        .onReceive(clockTimer) { now = $0 }
+        .onReceive(clockTimer) { newDate in
+            guard state.isExpanded else { return }
+            now = newDate
+        }
         .onReceive(dataTimer) { _ in
+            guard state.isExpanded else { return }
             updateBattery()
             if statsExpanded { updateSystem() }
+        }
+        .onChange(of: state.isExpanded) { _, expanded in
+            if expanded {
+                // Refresh data after animation settles
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    now = Date()
+                    updateBattery()
+                    if statsExpanded { updateSystem() }
+                }
+            }
         }
         .onChange(of: selectedDay) { fetchEvents() }
         .onChange(of: displayMonth) { fetchEvents() }
@@ -290,22 +307,16 @@ struct DashboardView: View {
     // MARK: - Right Section
 
     private var rightSection: some View {
-        // Top row is a fixed compact height; Now Playing fills the rest
-        GeometryReader { geo in
-            let topRowH: CGFloat = 100
-            let npH = max(80, geo.size.height - topRowH - 7)
-            VStack(spacing: 7) {
-                HStack(spacing: 7) {
-                    batteryCard.frame(maxWidth: 84)
-                    systemCard.frame(maxWidth: .infinity)
-                    quickActionsCard.frame(maxWidth: .infinity)
-                }
-                .frame(height: topRowH)
-
-                nowPlayingCard
-                    .frame(maxWidth: .infinity)
-                    .frame(height: npH)
+        VStack(spacing: 7) {
+            HStack(spacing: 7) {
+                batteryCard.frame(maxWidth: 84)
+                systemCard.frame(maxWidth: .infinity)
+                quickActionsCard.frame(maxWidth: .infinity)
             }
+            .frame(height: 100)
+
+            nowPlayingCard
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 

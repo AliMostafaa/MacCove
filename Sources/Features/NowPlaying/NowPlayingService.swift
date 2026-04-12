@@ -12,6 +12,10 @@ final class NowPlayingService {
     // so we don't let MediaRemote override it
     private var lastDistributedUpdate: Date = .distantPast
 
+    // When false, tick() won't mutate elapsedTime — prevents @Observable
+    // cascade to invisible DashboardView while collapsed.
+    private(set) var isExpanded: Bool = false
+
     // Function type aliases for MediaRemote C functions
     private typealias MRMediaRemoteGetNowPlayingInfoFunction = @convention(c) (DispatchQueue, @escaping ([String: Any]) -> Void) -> Void
     private typealias MRMediaRemoteRegisterNotificationsFunction = @convention(c) (DispatchQueue) -> Void
@@ -68,6 +72,13 @@ final class NowPlayingService {
                         name: NSNotification.Name("com.spotify.client.PlaybackStateChanged"), object: nil)
         ddc.addObserver(self, selector: #selector(appleMusicNotification(_:)),
                         name: NSNotification.Name("com.apple.Music.playerInfo"), object: nil)
+
+        // Listen for notch expansion changes to pause/resume tick
+        NotificationCenter.default.addObserver(
+            forName: .init("MacCove.notchExpansionChanged"), object: nil, queue: .main
+        ) { [weak self] notif in
+            self?.isExpanded = notif.userInfo?["expanded"] as? Bool ?? false
+        }
 
         // Initial fetch
         fetchFullInfo()
@@ -213,11 +224,18 @@ final class NowPlayingService {
     // MARK: - Timer Tick
 
     private func tick() {
-        guard model.isPlaying, model.duration > 0 else { return }
+        // Only mutate elapsedTime when expanded — the seek bar is the only
+        // consumer. Collapsed notch never reads elapsedTime/progress, so
+        // ticking while collapsed just triggers wasted @Observable cascades.
+        guard model.isPlaying, model.duration > 0, isExpanded else { return }
         model.elapsedTime += 1.0
         if model.elapsedTime > model.duration {
             model.elapsedTime = model.duration
         }
+    }
+
+    func setExpanded(_ expanded: Bool) {
+        isExpanded = expanded
     }
 
     // MARK: - Helpers

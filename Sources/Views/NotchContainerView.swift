@@ -4,7 +4,8 @@ import UniformTypeIdentifiers
 struct NotchContainerView: View {
     @Environment(NotchState.self) private var state
 
-    // Content opacity is decoupled so it fades slightly behind the shape morph.
+    // Drives expanded content fade — decoupled so content appears
+    // slightly after the shape, and vanishes slightly before.
     @State private var contentOpacity: Double = 0
 
     var body: some View {
@@ -12,7 +13,6 @@ struct NotchContainerView: View {
             ZStack(alignment: .top) {
 
                 // ── Shape ─────────────────────────────────────────────────────
-                // One shape, one spring. This IS the animation.
                 NotchShapeWithEars(progress: state.isExpanded ? 1 : 0)
                     .fill(state.isExpanded
                           ? NotchConstants.expandedBackground
@@ -32,18 +32,18 @@ struct NotchContainerView: View {
                         radius: state.isExpanded ? 28 : 3,
                         x: 0, y: state.isExpanded ? 14 : 0
                     )
+                    // Flatten shape + 3 shadows into a single Metal texture per frame.
+                    // Without this, each shadow is a separate Gaussian blur pass on the GPU.
+                    .drawingGroup()
 
                 // ── Content ───────────────────────────────────────────────────
-                // Both views always exist — no if/else branching, no view
-                // identity changes, no competing transitions. The shape
-                // reveals them through the clip; opacity does the rest.
+                // Both views always exist — no view construction during animation.
+                // Only opacity changes. The shape clip reveals/conceals.
                 ZStack(alignment: .top) {
-                    // Collapsed
                     CollapsedNotchView()
                         .opacity(state.isExpanded ? 0 : 1)
                         .allowsHitTesting(!state.isExpanded)
 
-                    // Expanded
                     ExpandedNotchView()
                         .frame(
                             width:  NotchConstants.expandedWidth  - 32,
@@ -51,13 +51,30 @@ struct NotchContainerView: View {
                         )
                         .padding(.top, 12)
                         .opacity(contentOpacity)
-                        .allowsHitTesting(state.isExpanded)
+                        .allowsHitTesting(state.isExpanded && contentOpacity > 0.5)
                 }
                 .clipShape(NotchShapeWithEars(progress: state.isExpanded ? 1 : 0))
             }
-            // Single animation drives EVERYTHING — shape, clip, shadows, opacity
             .animation(NotchConstants.spring, value: state.isExpanded)
             .frame(width: NotchConstants.panelWidth, height: NotchConstants.panelHeight, alignment: .top)
+            .onChange(of: state.isExpanded) { _, expanded in
+                // Notify services so they can pause/resume expensive work
+                NotificationCenter.default.post(
+                    name: .init("MacCove.notchExpansionChanged"),
+                    object: nil,
+                    userInfo: ["expanded": expanded]
+                )
+
+                if expanded {
+                    withAnimation(.easeOut(duration: 0.22).delay(0.10)) {
+                        contentOpacity = 1
+                    }
+                } else {
+                    withAnimation(.easeIn(duration: 0.10)) {
+                        contentOpacity = 0
+                    }
+                }
+            }
             .onDrop(of: [.fileURL, .url, .image], isTargeted: Binding(
                 get: { state.isDragHovering },
                 set: { newValue in
@@ -70,19 +87,6 @@ struct NotchContainerView: View {
             )) { providers in
                 handleDrop(providers)
                 return true
-            }
-            .onChange(of: state.isExpanded) { _, expanded in
-                if expanded {
-                    // Fade content in slightly after the shape starts growing
-                    withAnimation(.easeOut(duration: 0.25).delay(0.12)) {
-                        contentOpacity = 1
-                    }
-                } else {
-                    // Fade content out quickly, shape shrinks around it
-                    withAnimation(.easeIn(duration: 0.12)) {
-                        contentOpacity = 0
-                    }
-                }
             }
         }
         .frame(width: NotchConstants.panelWidth, height: NotchConstants.panelHeight, alignment: .top)

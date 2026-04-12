@@ -91,13 +91,8 @@ struct CollapsedNotchView: View {
 
     private var rightWing: some View {
         HStack(spacing: 6) {
-            if state.nowPlaying.isPlaying {
-                HStack(spacing: 2.5) {
-                    ForEach(0..<4, id: \.self) { index in
-                        MusicBar(index: index)
-                    }
-                }
-                .frame(width: 18, height: 14)
+            if state.nowPlaying.isPlaying && !state.isExpanded {
+                MusicEqualizer()
             }
 
             if !state.shelf.items.isEmpty {
@@ -117,40 +112,59 @@ struct CollapsedNotchView: View {
 
 // MARK: - Music Equalizer Bars
 
-/// Each bar has a unique randomised target height and animation duration,
-/// creating an organic, non-mechanical equaliser effect.
-private struct MusicBar: View {
-    let index: Int
-    @State private var animHeight: CGFloat = 2
+/// Low-CPU equalizer: a slow timer (every 0.8s) picks new random target
+/// heights, and SwiftUI's `.animation` smoothly interpolates between them.
+/// SwiftUI only re-evaluates the body once per 0.8s — Core Animation handles
+/// the smooth interpolation at the layer level with near-zero CPU.
+private struct MusicEqualizer: View {
+    @State private var heights: [CGFloat] = [5, 3, 7, 4]
+    @State private var timer: Timer?
 
-    // Per-bar personality: distinct heights and tempos
-    private static let targetHeights: [CGFloat] = [11, 7, 13, 9]
-    private static let durations:     [Double]  = [0.48, 0.38, 0.55, 0.42]
-    private static let minHeights:    [CGFloat] = [2, 3, 2, 4]
+    private static let minH: [CGFloat] = [2, 3, 2, 4]
+    private static let maxH: [CGFloat] = [11, 7, 13, 9]
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 1.5)
-            .fill(
-                LinearGradient(
-                    colors: [
-                        NotchConstants.accentGlow,
-                        NotchConstants.accentGlow.opacity(0.55)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .frame(width: 2.5, height: max(Self.minHeights[index % 4], animHeight))
-            .onAppear {
-                // Stagger start so bars don't all move in sync
-                let delay = Double(index) * 0.08
-                withAnimation(
-                    .easeInOut(duration: Self.durations[index % 4])
-                    .repeatForever(autoreverses: true)
-                    .delay(delay)
-                ) {
-                    animHeight = Self.targetHeights[index % 4]
-                }
+        HStack(spacing: 2.5) {
+            ForEach(0..<4, id: \.self) { i in
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                NotchConstants.accentGlow,
+                                NotchConstants.accentGlow.opacity(0.55)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .frame(width: 2.5, height: heights[i])
             }
+        }
+        .frame(width: 18, height: 14, alignment: .bottom)
+        .drawingGroup()
+        .onAppear { startTimer() }
+        .onDisappear { stopTimer() }
+    }
+
+    private func startTimer() {
+        randomise()
+        // 1.5s interval with 0.35s animation = ~23% duty cycle
+        // CPU is zero during the ~1.15s idle gap between animations
+        timer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { _ in
+            randomise()
+        }
+    }
+
+    private func stopTimer() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    private func randomise() {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            for i in 0..<4 {
+                heights[i] = CGFloat.random(in: Self.minH[i]...Self.maxH[i])
+            }
+        }
     }
 }
