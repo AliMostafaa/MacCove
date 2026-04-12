@@ -27,11 +27,11 @@ struct CollapsedNotchView: View {
     // MARK: - Left Wing
 
     private var leftWing: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 9) {
             artworkThumbnail
             trackLabels
         }
-        .padding(.leading, 10)
+        .padding(.leading, 12)
         .padding(.trailing, 4)
     }
 
@@ -51,24 +51,38 @@ struct CollapsedNotchView: View {
                         value: state.nowPlaying.isPlaying
                     )
             } else {
+                // Album art placeholder with subtle gradient
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(.white.opacity(0.06))
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                .white.opacity(0.10),
+                                .white.opacity(0.04)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
                     .frame(width: 24, height: 24)
                     .overlay(
                         Image(systemName: "music.note")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.25))
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(
+                                state.nowPlaying.isPlaying
+                                    ? NotchConstants.accentGlow.opacity(0.6)
+                                    : .white.opacity(0.25)
+                            )
                     )
             }
 
-            // Subtle accent ring when playing
+            // Accent ring when playing
             if state.nowPlaying.isPlaying {
                 RoundedRectangle(cornerRadius: 6)
                     .strokeBorder(
                         LinearGradient(
                             colors: [
-                                NotchConstants.accentGlow.opacity(0.6),
-                                NotchConstants.accentGlow.opacity(0.2)
+                                NotchConstants.accentGlow.opacity(0.55),
+                                NotchConstants.accentGlow.opacity(0.15)
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
@@ -83,23 +97,23 @@ struct CollapsedNotchView: View {
     private var trackLabels: some View {
         VStack(alignment: .leading, spacing: 1.5) {
             Text(state.nowPlaying.title)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.88))
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white.opacity(state.nowPlaying.isPlaying ? 0.92 : 0.65))
                 .lineLimit(1)
-                .frame(maxWidth: 80, alignment: .leading)
+                .frame(maxWidth: 100, alignment: .leading)
 
             Text(state.nowPlaying.artist)
-                .font(.system(size: 8.5, weight: .regular))
-                .foregroundStyle(.white.opacity(0.40))
+                .font(.system(size: 9, weight: .regular))
+                .foregroundStyle(.white.opacity(state.nowPlaying.isPlaying ? 0.42 : 0.28))
                 .lineLimit(1)
-                .frame(maxWidth: 80, alignment: .leading)
+                .frame(maxWidth: 100, alignment: .leading)
         }
     }
 
     // MARK: - Right Wing
 
     private var rightWing: some View {
-        HStack(spacing: 7) {
+        HStack(spacing: 8) {
             if state.nowPlaying.isPlaying && !state.isExpanded {
                 MusicEqualizer()
             }
@@ -108,7 +122,7 @@ struct CollapsedNotchView: View {
                 shelfBadge
             }
         }
-        .padding(.trailing, 10)
+        .padding(.trailing, 12)
         .padding(.leading, 4)
     }
 
@@ -131,15 +145,13 @@ struct CollapsedNotchView: View {
 
 // MARK: - Music Equalizer Bars
 
-/// Low-CPU equalizer: a slow timer (every 2s) picks new random target
-/// heights, and SwiftUI's `.animation` smoothly interpolates between them.
-/// SwiftUI only re-evaluates the body once per 2s — Core Animation handles
-/// the smooth interpolation at the layer level with near-zero CPU.
+/// Low-CPU equalizer: a slow timer picks new random target heights,
+/// and SwiftUI's `.animation` smoothly interpolates between them.
+/// Core Animation handles the smooth interpolation with near-zero CPU.
 private struct MusicEqualizer: View {
-    @State private var heights: [CGFloat] = [5, 3, 7, 4]
+    @State private var heights: [CGFloat] = [5, 4, 7]
     @State private var timer: Timer?
 
-    // 3 bars looks cleaner in the tight collapsed space
     private static let barCount = 3
     private static let minH: [CGFloat] = [3, 4, 3]
     private static let maxH: [CGFloat] = [12, 9, 13]
@@ -152,7 +164,7 @@ private struct MusicEqualizer: View {
                         LinearGradient(
                             colors: [
                                 NotchConstants.accentGlow,
-                                NotchConstants.accentGlow.opacity(0.45)
+                                NotchConstants.accentGlow.opacity(0.40)
                             ],
                             startPoint: .top,
                             endPoint: .bottom
@@ -161,7 +173,7 @@ private struct MusicEqualizer: View {
                     .frame(width: 3, height: heights[i])
             }
         }
-        .frame(width: 16, height: 14, alignment: .bottom)
+        .frame(width: 15, height: 14, alignment: .bottom)
         .drawingGroup()
         .onAppear { startTimer() }
         .onDisappear { stopTimer() }

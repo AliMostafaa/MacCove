@@ -1014,18 +1014,18 @@ private struct DashSeekBar: View {
                     .fill(NotchConstants.accentGlow.opacity(isDragging ? 1.0 : 0.75))
                     .scaleEffect(x: max(0.001, displayProgress), y: 1, anchor: .leading)
                     .animation(isDragging ? nil : .linear(duration: 0.15), value: displayProgress)
-                // Thumb — positioned via alignment guide
+                // Thumb — positioned via offset (not alignmentGuide, which would
+                // expand the ZStack's layout size at the edges)
                 Circle()
                     .fill(.white)
                     .frame(width: 8, height: 8)
                     .shadow(color: .black.opacity(0.25), radius: 2)
-                    .alignmentGuide(.leading) { d in
-                        d[.leading] - (trackWidth * displayProgress - 4)
-                    }
+                    .offset(x: trackWidth * displayProgress - 4)
                     .animation(isDragging ? nil : .linear(duration: 0.15), value: displayProgress)
             }
             .frame(height: 4)
             .frame(maxHeight: 10)
+            .clipped()
             .contentShape(Rectangle())
             .coordinateSpace(name: "seekTrack")
             .onTapGesture { location in

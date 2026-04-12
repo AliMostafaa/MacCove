@@ -122,6 +122,7 @@ final class NowPlayingService {
             }
             if let position = info["Playback Position"] as? Double {
                 self.model.elapsedTime = position
+                self.model.elapsedTimeSetAt = Date()
             }
 
             let playerState = info["Player State"] as? String ?? ""
@@ -175,7 +176,10 @@ final class NowPlayingService {
             if let artist { self.model.artist = artist }
             if let album { self.model.album = album }
             if let duration, duration > 0 { self.model.duration = duration }
-            if let elapsed { self.model.elapsedTime = elapsed }
+            if let elapsed {
+                self.model.elapsedTime = elapsed
+                self.model.elapsedTimeSetAt = Date()
+            }
 
             // Derive isPlaying from playbackRate (more reliable than getIsPlaying)
             // But don't override if a distributed notification set it recently
@@ -229,6 +233,7 @@ final class NowPlayingService {
         // ticking while collapsed just triggers wasted @Observable cascades.
         guard model.isPlaying, model.duration > 0, isExpanded else { return }
         model.elapsedTime += 1.0
+        model.elapsedTimeSetAt = Date()
         if model.elapsedTime > model.duration {
             model.elapsedTime = model.duration
         }
@@ -251,12 +256,14 @@ final class NowPlayingService {
         _ = sendCommand?(Self.kMRTogglePlayPause, nil)
         model.isPlaying.toggle()
         model.playbackRate = model.isPlaying ? 1.0 : 0.0
+        model.elapsedTimeSetAt = Date()
         lastDistributedUpdate = Date() // protect from MediaRemote overriding
     }
 
     func nextTrack() {
         _ = sendCommand?(Self.kMRNextTrack, nil)
         model.elapsedTime = 0
+        model.elapsedTimeSetAt = Date()
         model.artwork = nil
         scheduleArtworkRetry()
     }
@@ -264,6 +271,7 @@ final class NowPlayingService {
     func previousTrack() {
         _ = sendCommand?(Self.kMRPreviousTrack, nil)
         model.elapsedTime = 0
+        model.elapsedTimeSetAt = Date()
         model.artwork = nil
         scheduleArtworkRetry()
     }
@@ -271,6 +279,7 @@ final class NowPlayingService {
     func seekTo(time: TimeInterval) {
         let clampedTime = min(max(time, 0), model.duration)
         model.elapsedTime = clampedTime
+        model.elapsedTimeSetAt = Date()
         setElapsedTime?(clampedTime)
         lastDistributedUpdate = Date() // protect from MediaRemote overriding
     }
