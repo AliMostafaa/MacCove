@@ -269,7 +269,7 @@ struct DashboardView: View {
     private var rightSection: some View {
         // Top row is a fixed compact height; Now Playing fills the rest
         GeometryReader { geo in
-            let topRowH: CGFloat = 108
+            let topRowH: CGFloat = 100
             let npH = max(80, geo.size.height - topRowH - 7)
             VStack(spacing: 7) {
                 HStack(spacing: 7) {
