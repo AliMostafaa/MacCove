@@ -18,10 +18,10 @@ enum NotchConstants {
     // MARK: - Animation
 
     /// Opening: organic, slight bounce — feels alive
-    static let openSpring = Animation.spring(response: 0.50, dampingFraction: 0.68)
-    /// Closing: decisive, no overshoot — feels fast and clean
-    static let closeSpring = Animation.spring(response: 0.30, dampingFraction: 0.92)
-    /// Content entrance: slightly slower so shape leads
+    static let openSpring  = Animation.spring(response: 0.46, dampingFraction: 0.72)
+    /// Closing: decisive, well-damped — shape and content finish together
+    static let closeSpring = Animation.spring(response: 0.34, dampingFraction: 0.90)
+    /// Content entrance (kept for legacy call-sites)
     static let contentEntrance = Animation.spring(response: 0.38, dampingFraction: 0.84)
     /// Tab pill slide: very snappy
     static let tabSpring = Animation.spring(response: 0.26, dampingFraction: 0.80)
