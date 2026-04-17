@@ -48,6 +48,23 @@ enum NotchConstants {
     static let surfaceOverlayHover = Color.white.opacity(0.10)
 }
 
+enum NotchPosition: String, CaseIterable {
+    case topCenter   = "topCenter"
+    case bottomLeft  = "bottomLeft"
+    case bottomRight = "bottomRight"
+
+    var label: String {
+        switch self {
+        case .topCenter:   return "Top Center"
+        case .bottomLeft:  return "Bottom Left"
+        case .bottomRight: return "Bottom Right"
+        }
+    }
+
+    var isCorner: Bool { self != .topCenter }
+    var isLeading: Bool { self == .bottomLeft }
+}
+
 enum NotchPage: String, CaseIterable, Identifiable {
     case dashboard = "Home"
     case shelf     = "Shelf"

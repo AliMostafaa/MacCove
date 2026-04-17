@@ -46,6 +46,21 @@ struct SettingsView: View {
                     .disabled(true)
                     .help("Menu bar icon is always visible")
             }
+
+            Section("Position") {
+                Picker("Notch Position", selection: Binding(
+                    get: { state.settings.notchPosition },
+                    set: { state.settings.notchPosition = $0 }
+                )) {
+                    ForEach(NotchPosition.allCases, id: \.self) { pos in
+                        Text(pos.label).tag(pos)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Text("Changes take effect immediately")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
         .padding()

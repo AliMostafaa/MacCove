@@ -10,17 +10,35 @@ final class NotchWindowController {
         setupPanel()
     }
 
+    private func panelOrigin(for screen: NSScreen) -> CGPoint {
+        let sf = screen.frame
+        let pw = NotchConstants.panelWidth
+        let ph = NotchConstants.panelHeight
+        switch state.settings.notchPosition {
+        case .topCenter:
+            return CGPoint(x: sf.midX - pw / 2, y: sf.maxY - ph)
+        case .bottomLeft:
+            return CGPoint(x: sf.minX, y: sf.minY)
+        case .bottomRight:
+            return CGPoint(x: sf.maxX - pw, y: sf.minY)
+        }
+    }
+
+    func repositionPanel() {
+        let screen = state.screenWithNotch ?? NSScreen.main!
+        let origin = panelOrigin(for: screen)
+        panel.setFrame(NSRect(origin: origin,
+                              size: CGSize(width: NotchConstants.panelWidth,
+                                           height: NotchConstants.panelHeight)),
+                       display: true)
+    }
+
     private func setupPanel() {
         let screen = state.screenWithNotch ?? NSScreen.main!
-        let screenFrame = screen.frame
-
-        // Position the panel centered at the top of the screen
-        let panelWidth = NotchConstants.panelWidth
-        let panelHeight = NotchConstants.panelHeight
-        let panelX = screenFrame.midX - panelWidth / 2
-        let panelY = screenFrame.maxY - panelHeight
-
-        let contentRect = NSRect(x: panelX, y: panelY, width: panelWidth, height: panelHeight)
+        let origin = panelOrigin(for: screen)
+        let contentRect = NSRect(origin: origin,
+                                 size: CGSize(width: NotchConstants.panelWidth,
+                                              height: NotchConstants.panelHeight))
         panel = NotchPanel(contentRect: contentRect)
 
         // Drag enter callback — auto-expand when files are dragged to notch
@@ -35,7 +53,7 @@ final class NotchWindowController {
             .environment(state)
 
         let hostingView = NSHostingView(rootView: rootView)
-        hostingView.frame = NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight)
+        hostingView.frame = NSRect(x: 0, y: 0, width: NotchConstants.panelWidth, height: NotchConstants.panelHeight)
         panel.contentView = hostingView
     }
 

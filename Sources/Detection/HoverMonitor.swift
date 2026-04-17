@@ -91,24 +91,43 @@ final class HoverMonitor {
         collapseWorkItem = nil
     }
 
-    /// The activation zone around the notch for triggering expansion
+    /// The activation zone for triggering expansion
     private func notchActivationRect(sensitivity: CGFloat) -> CGRect {
-        let notchRect = state.notchRect
-        return notchRect.insetBy(dx: -sensitivity, dy: -sensitivity / 2)
+        let screen = state.screenWithNotch ?? NSScreen.main!
+        let sf = screen.frame
+        let cw = NotchConstants.collapsedWidth
+        let ch = NotchConstants.collapsedHeight
+        switch state.settings.notchPosition {
+        case .topCenter:
+            return state.notchRect.insetBy(dx: -sensitivity, dy: -sensitivity / 2)
+        case .bottomLeft:
+            return CGRect(x: sf.minX - sensitivity,
+                          y: sf.minY,
+                          width: cw + sensitivity * 2,
+                          height: ch + sensitivity)
+        case .bottomRight:
+            return CGRect(x: sf.maxX - cw - sensitivity,
+                          y: sf.minY,
+                          width: cw + sensitivity * 2,
+                          height: ch + sensitivity)
+        }
     }
 
     /// The hover zone for the expanded panel (prevents premature collapse)
     private func expandedHoverRect(sensitivity: CGFloat) -> CGRect {
         guard let panel = windowController?.panel else { return .zero }
-        let panelFrame = panel.frame
-
-        // The expanded content is centered at the top of the panel
-        let expandedW = NotchConstants.expandedWidth + sensitivity * 2
-        let expandedH = NotchConstants.expandedHeight + sensitivity
-        let x = panelFrame.midX - expandedW / 2
-        let y = panelFrame.maxY - expandedH
-
-        return CGRect(x: x, y: y, width: expandedW, height: expandedH)
+        let pf = panel.frame
+        let ew = NotchConstants.expandedWidth + sensitivity * 2
+        let eh = NotchConstants.expandedHeight + sensitivity
+        switch state.settings.notchPosition {
+        case .topCenter:
+            return CGRect(x: pf.midX - ew / 2, y: pf.maxY - eh, width: ew, height: eh)
+        case .bottomLeft:
+            return CGRect(x: pf.minX - sensitivity, y: pf.minY, width: ew, height: eh)
+        case .bottomRight:
+            return CGRect(x: pf.maxX - NotchConstants.expandedWidth - sensitivity,
+                          y: pf.minY, width: ew, height: eh)
+        }
     }
 
     deinit {

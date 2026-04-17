@@ -31,6 +31,14 @@ final class SettingsModel {
         get { UserDefaults.standard.bool(forKey: "launchAtLogin") }
         set { UserDefaults.standard.set(newValue, forKey: "launchAtLogin") }
     }
+
+    var notchPosition: NotchPosition {
+        get { NotchPosition(rawValue: UserDefaults.standard.string(forKey: "notchPosition") ?? "") ?? .topCenter }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: "notchPosition")
+            NotificationCenter.default.post(name: .init("MacCove.notchPositionChanged"), object: nil)
+        }
+    }
 }
 
 private extension Double {

@@ -75,6 +75,53 @@ struct NotchShapeWithEars: Shape, Animatable {
     }
 }
 
+/// Rounded-rect shape anchored to a bottom corner. No ears — it's a floating widget.
+struct CornerNotchShape: Shape, Animatable {
+    var progress: CGFloat
+    var isLeading: Bool
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let w = lerp(NotchConstants.collapsedWidth,      NotchConstants.expandedWidth,      progress)
+        let h = lerp(NotchConstants.collapsedHeight,     NotchConstants.expandedHeight,     progress)
+        let r = lerp(NotchConstants.collapsedCornerRadius, NotchConstants.expandedCornerRadius, progress)
+        let x: CGFloat = isLeading ? rect.minX : rect.maxX - w
+        let y: CGFloat = rect.maxY - h
+        return Path(roundedRect: CGRect(x: x, y: y, width: w, height: h), cornerRadius: r)
+    }
+
+    private func lerp(_ a: CGFloat, _ b: CGFloat, _ t: CGFloat) -> CGFloat {
+        a + (b - a) * t
+    }
+}
+
+/// Unified shape that delegates to the right variant based on position.
+/// Use this everywhere instead of calling NotchShapeWithEars or CornerNotchShape directly.
+struct AdaptiveNotchShape: Shape, Animatable {
+    var progress: CGFloat
+    var position: NotchPosition
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        switch position {
+        case .topCenter:
+            return NotchShapeWithEars(progress: progress).path(in: rect)
+        case .bottomLeft:
+            return CornerNotchShape(progress: progress, isLeading: true).path(in: rect)
+        case .bottomRight:
+            return CornerNotchShape(progress: progress, isLeading: false).path(in: rect)
+        }
+    }
+}
+
 /// Flat-top notch shape (no ears). Kept for reference / non-notch Macs.
 struct NotchShape: Shape, Animatable {
     var progress: CGFloat

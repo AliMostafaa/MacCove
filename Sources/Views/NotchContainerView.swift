@@ -9,10 +9,23 @@ struct NotchContainerView: View {
     @State private var contentOpacity: Double = 0
 
     private var isDot: Bool { state.isMinimized && !state.isExpanded }
+    private var position: NotchPosition { state.settings.notchPosition }
+
+    private var stackAlignment: Alignment {
+        switch position {
+        case .topCenter:   return .top
+        case .bottomLeft:  return .bottomLeading
+        case .bottomRight: return .bottomTrailing
+        }
+    }
+
+    private var expandedEdgePadding: Edge.Set {
+        position.isCorner ? .bottom : .top
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            ZStack(alignment: .top) {
+            ZStack(alignment: stackAlignment) {
 
                 // ── Dot (minimized) ───────────────────────────────────────────
                 RoundedRectangle(cornerRadius: NotchConstants.dotCornerRadius)
@@ -23,31 +36,31 @@ struct NotchContainerView: View {
                     .allowsHitTesting(false)
 
                 // ── Shape ─────────────────────────────────────────────────────
-                NotchShapeWithEars(progress: state.isExpanded ? 1 : 0)
+                AdaptiveNotchShape(progress: state.isExpanded ? 1 : 0, position: position)
                     .fill(state.isExpanded
                           ? NotchConstants.expandedBackground
                           : NotchConstants.notchBackground)
                     .shadow(
                         color: .black.opacity(state.isExpanded ? 0.40 : 0.10),
                         radius: state.isExpanded ? 22 : 4,
-                        x: 0, y: state.isExpanded ? 10 : 2
+                        x: 0, y: state.isExpanded ? (position.isCorner ? -10 : 10) : (position.isCorner ? -2 : 2)
                     )
                     .shadow(
                         color: .black.opacity(state.isExpanded ? 0.16 : 0.04),
                         radius: state.isExpanded ? 7 : 2,
-                        x: 0, y: state.isExpanded ? 3 : 1
+                        x: 0, y: state.isExpanded ? (position.isCorner ? -3 : 3) : (position.isCorner ? -1 : 1)
                     )
                     .shadow(
                         color: NotchConstants.accentGlow.opacity(state.isExpanded ? 0.05 : 0.01),
                         radius: state.isExpanded ? 28 : 3,
-                        x: 0, y: state.isExpanded ? 14 : 0
+                        x: 0, y: state.isExpanded ? (position.isCorner ? -14 : 14) : 0
                     )
                     .drawingGroup()
                     .opacity(isDot ? 0 : 1)
                     .allowsHitTesting(!isDot)
 
                 // ── Content ───────────────────────────────────────────────────
-                ZStack(alignment: .top) {
+                ZStack(alignment: stackAlignment) {
                     CollapsedNotchView()
                         .opacity(state.isExpanded ? 0 : 1)
                         .allowsHitTesting(!state.isExpanded)
@@ -57,17 +70,18 @@ struct NotchContainerView: View {
                             width:  NotchConstants.expandedWidth  - 32,
                             height: NotchConstants.expandedHeight - 20
                         )
-                        .padding(.top, 12)
+                        .padding(expandedEdgePadding, 12)
                         .opacity(contentOpacity)
                         .allowsHitTesting(state.isExpanded && contentOpacity > 0.5)
                 }
-                .clipShape(NotchShapeWithEars(progress: state.isExpanded ? 1 : 0))
+                .clipShape(AdaptiveNotchShape(progress: state.isExpanded ? 1 : 0, position: position))
                 .opacity(isDot ? 0 : 1)
                 .allowsHitTesting(!isDot)
             }
             .animation(NotchConstants.spring, value: state.isExpanded)
             .animation(NotchConstants.spring, value: state.isMinimized)
-            .frame(width: NotchConstants.panelWidth, height: NotchConstants.panelHeight, alignment: .top)
+            .animation(NotchConstants.spring, value: position)
+            .frame(width: NotchConstants.panelWidth, height: NotchConstants.panelHeight, alignment: stackAlignment)
             .onChange(of: state.isExpanded) { _, expanded in
                 // Notify services so they can pause/resume expensive work
                 NotificationCenter.default.post(
@@ -100,7 +114,7 @@ struct NotchContainerView: View {
                 return true
             }
         }
-        .frame(width: NotchConstants.panelWidth, height: NotchConstants.panelHeight, alignment: .top)
+        .frame(width: NotchConstants.panelWidth, height: NotchConstants.panelHeight, alignment: stackAlignment)
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) {

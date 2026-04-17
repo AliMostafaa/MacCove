@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var carbonHotKeyRef: EventHotKeyRef?
     private var bracketLeftRef: EventHotKeyRef?
     private var bracketRightRef: EventHotKeyRef?
+    private var hyperkeyNRef: EventHotKeyRef?
     private var carbonEventHandler: EventHandlerRef?
     private var navigationEventTap: CFMachPort?
     private var navigationRunLoopSource: CFRunLoopSource?
@@ -65,6 +66,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         hoverMonitor = HoverMonitor(state: notchState, windowController: windowController!)
         hoverMonitor?.start()
+
+        NotificationCenter.default.addObserver(
+            forName: .init("MacCove.notchPositionChanged"),
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.windowController?.repositionPanel()
+        }
     }
 
     // MARK: - Now Playing
@@ -127,6 +135,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 case 1: DispatchQueue.main.async { delegate.clipboardShortcutTriggered() }
                 case 2: DispatchQueue.main.async { delegate.navigatePage(by: -1) }
                 case 3: DispatchQueue.main.async { delegate.navigatePage(by: +1) }
+                case 4: DispatchQueue.main.async { delegate.toggleNotch() }
                 default: break
                 }
                 return noErr
@@ -147,6 +156,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         RegisterEventHotKey(UInt32(kVK_ANSI_RightBracket), UInt32(cmdKey),
                             EventHotKeyID(signature: sig, id: 3),
                             GetApplicationEventTarget(), 0, &bracketRightRef)
+        // id:4  Hyperkey+N (Cmd+Ctrl+Opt+Shift+N) — toggle notch
+        RegisterEventHotKey(UInt32(kVK_ANSI_N),
+                            UInt32(cmdKey | shiftKey | optionKey | controlKey),
+                            EventHotKeyID(signature: sig, id: 4),
+                            GetApplicationEventTarget(), 0, &hyperkeyNRef)
     }
 
     @objc private func clipboardShortcutTriggered() {
