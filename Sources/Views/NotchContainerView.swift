@@ -8,9 +8,19 @@ struct NotchContainerView: View {
     // slightly after the shape, and vanishes slightly before.
     @State private var contentOpacity: Double = 0
 
+    private var isDot: Bool { state.isMinimized && !state.isExpanded }
+
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
+
+                // ── Dot (minimized) ───────────────────────────────────────────
+                RoundedRectangle(cornerRadius: NotchConstants.dotCornerRadius)
+                    .fill(.black)
+                    .frame(width: NotchConstants.dotSize, height: NotchConstants.dotSize)
+                    .shadow(color: .black.opacity(0.35), radius: 4, x: 0, y: 2)
+                    .opacity(isDot ? 1 : 0)
+                    .allowsHitTesting(false)
 
                 // ── Shape ─────────────────────────────────────────────────────
                 NotchShapeWithEars(progress: state.isExpanded ? 1 : 0)
@@ -32,13 +42,11 @@ struct NotchContainerView: View {
                         radius: state.isExpanded ? 28 : 3,
                         x: 0, y: state.isExpanded ? 14 : 0
                     )
-                    // Flatten shape + 3 shadows into a single Metal texture per frame.
-                    // Without this, each shadow is a separate Gaussian blur pass on the GPU.
                     .drawingGroup()
+                    .opacity(isDot ? 0 : 1)
+                    .allowsHitTesting(!isDot)
 
                 // ── Content ───────────────────────────────────────────────────
-                // Both views always exist — no view construction during animation.
-                // Only opacity changes. The shape clip reveals/conceals.
                 ZStack(alignment: .top) {
                     CollapsedNotchView()
                         .opacity(state.isExpanded ? 0 : 1)
@@ -54,8 +62,11 @@ struct NotchContainerView: View {
                         .allowsHitTesting(state.isExpanded && contentOpacity > 0.5)
                 }
                 .clipShape(NotchShapeWithEars(progress: state.isExpanded ? 1 : 0))
+                .opacity(isDot ? 0 : 1)
+                .allowsHitTesting(!isDot)
             }
             .animation(NotchConstants.spring, value: state.isExpanded)
+            .animation(NotchConstants.spring, value: state.isMinimized)
             .frame(width: NotchConstants.panelWidth, height: NotchConstants.panelHeight, alignment: .top)
             .onChange(of: state.isExpanded) { _, expanded in
                 // Notify services so they can pause/resume expensive work

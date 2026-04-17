@@ -38,7 +38,6 @@ struct ExpandedNotchView: View {
                     HStack(spacing: 5) {
                         Image(systemName: page.icon)
                             .font(.system(size: 10, weight: .semibold))
-                            // Active icon gets a tiny upward nudge
                             .offset(y: state.currentPage == page ? -0.5 : 0)
                         Text(page.rawValue)
                             .font(.system(size: 10, weight: .medium))
@@ -50,7 +49,6 @@ struct ExpandedNotchView: View {
                         if state.currentPage == page {
                             Capsule()
                                 .fill(.white.opacity(0.13))
-                                // The namespace key "pill" must be unique per container
                                 .matchedGeometryEffect(id: "tabPill", in: tabNamespace)
                         }
                     }
@@ -58,6 +56,24 @@ struct ExpandedNotchView: View {
                 .buttonStyle(.plain)
                 .animation(NotchConstants.tabSpring, value: state.currentPage)
             }
+
+            Spacer()
+
+            Button {
+                if state.isMinimized {
+                    state.restore()
+                } else {
+                    state.minimize()
+                }
+            } label: {
+                Image(systemName: state.isMinimized ? "dot.circle" : "minus.circle")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(state.isMinimized ? NotchConstants.accentGlow.opacity(0.8) : .white.opacity(0.32))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+            }
+            .buttonStyle(.plain)
+            .help(state.isMinimized ? "Restore notch" : "Minimize to dot")
         }
         .padding(.horizontal, 8)
         .padding(.top, 2)

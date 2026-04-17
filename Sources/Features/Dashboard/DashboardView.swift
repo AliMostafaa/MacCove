@@ -566,30 +566,44 @@ struct DashboardView: View {
                                 NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app"))
                             }
                         }
-                        // WiFi Reset
-                        Button { resetWifi() } label: {
-                            HStack(spacing: 5) {
-                                if wifiResetState != .idle {
-                                    ProgressView()
-                                        .progressViewStyle(.circular)
-                                        .scaleEffect(0.5)
-                                        .frame(width: 10, height: 10)
-                                } else {
-                                    Image(systemName: "wifi.router")
-                                        .font(.system(size: 9, weight: .semibold))
+                        HStack(spacing: 4) {
+                            // WiFi Reset
+                            Button { resetWifi() } label: {
+                                HStack(spacing: 5) {
+                                    if wifiResetState != .idle {
+                                        ProgressView()
+                                            .progressViewStyle(.circular)
+                                            .scaleEffect(0.5)
+                                            .frame(width: 10, height: 10)
+                                    } else {
+                                        Image(systemName: "wifi.router")
+                                            .font(.system(size: 9, weight: .semibold))
+                                    }
+                                    Text(wifiResetState.label)
+                                        .font(.system(size: 9, weight: .medium))
                                 }
-                                Text(wifiResetState.label)
-                                    .font(.system(size: 9, weight: .medium))
+                                .foregroundStyle(wifiResetState == .idle ? .white.opacity(0.6) : .white.opacity(0.35))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 5)
+                                .background(RoundedRectangle(cornerRadius: 6)
+                                    .fill(wifiResetState == .idle ? .white.opacity(0.07) : .white.opacity(0.04)))
                             }
-                            .foregroundStyle(wifiResetState == .idle ? .white.opacity(0.6) : .white.opacity(0.35))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 5)
-                            .background(RoundedRectangle(cornerRadius: 6)
-                                .fill(wifiResetState == .idle ? .white.opacity(0.07) : .white.opacity(0.04)))
+                            .buttonStyle(.plain)
+                            .disabled(wifiResetState != .idle)
+                            .animation(.easeInOut(duration: 0.2), value: wifiResetState)
+
+                            // Minimize to dot
+                            Button { state.minimize() } label: {
+                                Image(systemName: "minus.circle")
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundStyle(.white.opacity(0.6))
+                                    .padding(.vertical, 5)
+                                    .padding(.horizontal, 8)
+                                    .background(RoundedRectangle(cornerRadius: 6)
+                                        .fill(.white.opacity(0.07)))
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
-                        .disabled(wifiResetState != .idle)
-                        .animation(.easeInOut(duration: 0.2), value: wifiResetState)
                     }
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 } else {

@@ -31,6 +31,10 @@ enum NotchConstants {
     static let collapseDelay: TimeInterval = 0.35
     static let dragExpandDelay: TimeInterval = 0.2
 
+    // Minimized dot dimensions
+    static let dotSize: CGFloat = 10
+    static let dotCornerRadius: CGFloat = 5
+
     // Fallback for non-notch Macs
     static let fallbackNotchWidth: CGFloat = 180
     static let fallbackNotchHeight: CGFloat = 32

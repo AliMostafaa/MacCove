@@ -3,6 +3,7 @@ import SwiftUI
 @Observable
 final class NotchState {
     var isExpanded = false
+    var isMinimized = false
     var isDragHovering = false
     var currentPage: NotchPage = .dashboard
     var notchRect: CGRect = .zero
@@ -63,5 +64,18 @@ final class NotchState {
 
     func toggle() {
         isExpanded ? collapse() : expand()
+    }
+
+    func minimize() {
+        withAnimation(NotchConstants.spring) {
+            isExpanded = false
+            isMinimized = true
+        }
+    }
+
+    func restore() {
+        withAnimation(NotchConstants.spring) {
+            isMinimized = false
+        }
     }
 }
